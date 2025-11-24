@@ -4,16 +4,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from client.isaac_client import IsaacSimClient
-from client.skill_library import SkillLibrary
-from common.logger import get_client_logger
+from manual_cmd.isaac_client import IsaacSimClient
+from manual_cmd.skill_library import SkillLibrary
+from common.logger import get_manualcmd_logger
 
 
 class ManualControlCLI:
     def __init__(self):
         self.client = IsaacSimClient()
         self.skills = SkillLibrary()
-        self.logger = get_client_logger()
+        self.logger = get_manualcmd_logger()
         self.last_command = None
         
         self.logger.info("Manual control CLI initialized")

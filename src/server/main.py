@@ -25,7 +25,7 @@ from common.config import (
     SIMULATION_DT, 
     SERVER_PORT
 )
-from common.logger import get_server_logger
+from common.logger import get_server_logger, log_run_info
 
 
 class RobotSimulation:
@@ -34,6 +34,7 @@ class RobotSimulation:
     """
     
     def __init__(self):
+        log_run_info()
         self.logger = get_server_logger()
         self.world = None
         self.robot = None

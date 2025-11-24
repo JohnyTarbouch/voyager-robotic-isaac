@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common.config import SERVER_HOST, SERVER_PORT
-from common.logger import get_client_logger
+from common.logger import get_manualcmd_logger
 
 
 class IsaacSimClient:
@@ -19,7 +19,7 @@ class IsaacSimClient:
     def __init__(self, host: str = SERVER_HOST, port: int = SERVER_PORT):
         self.host = host
         self.port = port
-        self.logger = get_client_logger()
+        self.logger = get_manualcmd_logger()
         
         self.logger.info(f"Isaac Sim Client initialized (server: {host}:{port})")
     

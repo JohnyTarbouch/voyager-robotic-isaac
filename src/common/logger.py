@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import Optional
 from .config import (
     LOG_LEVEL, LOG_FORMAT, LOG_DATE_FORMAT,
-    SERVER_LOG_FILE, CLIENT_LOG_FILE, COMMANDS_LOG_FILE, SKILLS_LOG_FILE
+    CONSOLIDATED_LOG_FILE, RUN_LOG_DIR
 )
 
 
 def setup_logger(
     name: str,
-    log_file: Optional[Path] = None,
+    log_file: Path = CONSOLIDATED_LOG_FILE,
     level: str = LOG_LEVEL,
     console: bool = True
 ) -> logging.Logger:
@@ -34,29 +34,31 @@ def setup_logger(
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
     
+    logger.propagate = False
+    
     return logger
 
 
 def get_server_logger() -> logging.Logger:
-    return setup_logger('server', SERVER_LOG_FILE)
+    return setup_logger('server', console=True)
 
 
-def get_client_logger() -> logging.Logger:
-    return setup_logger('client', CLIENT_LOG_FILE)
+def get_manualcmd_logger() -> logging.Logger:
+    return setup_logger('manualcmd', console=True)
 
 
 def get_commands_logger() -> logging.Logger:
-    logger = setup_logger('commands', COMMANDS_LOG_FILE, console=False)
-    return logger
+    return setup_logger('commands', console=False)
 
 
 def get_skills_logger() -> logging.Logger:
-    return setup_logger('skills', SKILLS_LOG_FILE, console=False)
+    return setup_logger('skills', console=False)
 
 
-class CommandLogger:    
+class CommandLogger:
     def __init__(self):
         self.logger = get_commands_logger()
+        self.logger.info(f"CommandLogger initialized - logging to {CONSOLIDATED_LOG_FILE}")
     
     def log_command(self, action: str, params: dict, success: bool, 
                     duration: float = 0.0, error: str = None):
@@ -90,3 +92,23 @@ class CommandLogger:
             self.logger.info(f"Skill executed: {log_data}")
         else:
             self.logger.error(f"Skill failed: {log_data}")
+
+
+def log_run_info():
+    logger = logging.getLogger('system')
+    logger.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
+    file_handler = logging.FileHandler(CONSOLIDATED_LOG_FILE, mode='a')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    logger.info("="*70)
+    logger.info(f"NEW RUN STARTED")
+    logger.info(f"Log Directory: {RUN_LOG_DIR}")
+    logger.info(f"Log File: {CONSOLIDATED_LOG_FILE}")
+    logger.info("="*70)

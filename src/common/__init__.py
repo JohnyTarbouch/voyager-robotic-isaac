@@ -1,9 +1,8 @@
-
 from .config import *
 from .logger import (
     setup_logger,
     get_server_logger,
-    get_client_logger,
+    get_manualcmd_logger,
     get_commands_logger,
     get_skills_logger,
     CommandLogger
@@ -12,7 +11,7 @@ from .logger import (
 __all__ = [
     'setup_logger',
     'get_server_logger',
-    'get_client_logger',
+    'get_manualcmd_logger',
     'get_commands_logger',
     'get_skills_logger',
     'CommandLogger'
