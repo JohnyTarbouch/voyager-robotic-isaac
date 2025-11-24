@@ -212,4 +212,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-src/
+src/common
+src/client
+init_repo.sh
