@@ -11,7 +11,7 @@
 - **LLM Integration**: Claude or GPT for code generation
 - **Skill Library**: SQLite-based storage for learned behaviors
 - **Autonomous Learning**: Self-improvement through experience
-- **Manual Control**: Direct robot control without LLM
+- **Manual cmd**: Direct robot control without LLM
 - **Comprehensive Logging**: Detailed logs for debugging and analysis
 - **Modular Architecture**: Clean separation of concerns
 - **Socket API**: Flexible client-server architecture
@@ -23,21 +23,21 @@
 ```
 voyager-robotic-isaac/
 ├── src/
-│   ├── server/              # Isaac Sim server
-│   │   ├── main.py          # Main entry point
-│   │   ├── api_server.py    # Socket API server
+│   ├── server/  
+│   │   ├── main.py
+│   │   ├── api_server.py
 │   │   └── robot_controller.py
-│   ├── client/              # Client applications
+│   ├── manual_cmd/  
 │   │   ├── manual_control.py
 │   │   ├── isaac_client.py
 │   │   └── skill_library.py
-│   └── common/              # Shared utilities
+│   └── common/
 │       ├── config.py
 │       └── logger.py
-├── logs/                    # Log files
-├── data/                    # Database files
-├── tests/                   # Unit tests
-└── docs/                    # Documentation
+├── logs/ 
+├── data/ 
+├── tests/ 
+└── docs/ 
 ```
 
 ## Quick Start
