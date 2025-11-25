@@ -1,0 +1,6 @@
+2025-11-25 00:57:54 - manualcmd - INFO - Isaac Sim Client initialized (server: localhost:8888)
+2025-11-25 00:57:54 - skills - INFO - Skill library initialized at C:\isaacsim\standalone_examples\voyager-robotic-isaac\data\skills.db
+2025-11-25 00:57:54 - manualcmd - INFO - Manual control CLI initialized
+2025-11-25 00:58:05 - manualcmd - INFO - Move forward: 1.0 at 0.5
+2025-11-25 00:58:12 - skills - INFO - Skill added: forward
+2025-11-25 00:58:25 - manualcmd - INFO - Interrupted by user

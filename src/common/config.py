@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -9,8 +10,19 @@ DATA_DIR = PROJECT_ROOT / "data"
 LOGS_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
+# Extract command name from sys.argv
+def get_command_name():
+    """Extract a clean command name from the script invocation."""
+    if len(sys.argv) > 0:
+        # Get the script name without path and extension
+        script_path = Path(sys.argv[0])
+        command_name = script_path.stem  # e.g., 'main' from 'main.py'
+        return command_name
+    return "unknown"
+
 RUN_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-RUN_LOG_DIR = LOGS_DIR / f"run_{RUN_TIMESTAMP}"
+COMMAND_NAME = get_command_name()
+RUN_LOG_DIR = LOGS_DIR / f"run_{RUN_TIMESTAMP}_{COMMAND_NAME}"
 RUN_LOG_DIR.mkdir(exist_ok=True)
 
 SERVER_HOST = os.getenv('JETBOT_SERVER_HOST', 'localhost')
