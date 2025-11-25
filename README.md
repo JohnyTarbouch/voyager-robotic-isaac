@@ -167,7 +167,7 @@ export LLM_PROVIDER=anthropic
 ### Project Layout
 
 - **Server** (`src/server/`): Runs inside Isaac Sim, controls the robot
-- **Client** (`src/client/`): External Python scripts for control
+- **Manual controll** (`src/client/`): External Python scripts for control
 - **Common** (`src/common/`): Shared configuration and utilities (logs)
 
 ### Adding New Commands
@@ -184,26 +184,6 @@ pytest tests/
 ```
 
 
-## Troubleshooting
-
-### Connection Refused
-- Ensure Isaac Sim server is running
-- Check port 8888 is not blocked
-
-### Robot Doesn't Move
-- Check Isaac Sim console for errors
-- Verify robot loaded correctly
-- Review `logs/server.log`
-
-### Skill Execution Fails
-- Check `logs/skills.log` for details
-- Verify skill code syntax
-- Ensure `client` object is available
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/JohnyTarbouch/voyager-robotic-isaac/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/JohnyTarbouch/voyager-robotic-isaac/discussions)
 
 ## Roadmap
 
