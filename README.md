@@ -88,7 +88,7 @@ In a new terminal:
 
 ```bash
 cd isaacsim
-python.bat C:\isaacsim\standalone_examples\voyager-robotic-isaac\src\client\manual_control.py
+python.bat C:\isaacsim\standalone_examples\voyager-robotic-isaac\src\manual_cmd\manual_control.py
 ```
 
 ## Usage Examples
