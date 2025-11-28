@@ -11,7 +11,7 @@
 - **LLM Integration**: Claude or GPT for code generation
 - **Skill Library**: SQLite-based storage for learned behaviors
 - **Autonomous Learning**: Self-improvement through experience
-- **Manual Control**: Direct robot control without LLM
+- **Manual cmd**: Direct robot control without LLM
 - **Comprehensive Logging**: Detailed logs for debugging and analysis
 - **Modular Architecture**: Clean separation of concerns
 - **Socket API**: Flexible client-server architecture
@@ -23,21 +23,21 @@
 ```
 voyager-robotic-isaac/
 ├── src/
-│   ├── server/              # Isaac Sim server
-│   │   ├── main.py          # Main entry point
-│   │   ├── api_server.py    # Socket API server
+│   ├── server/  
+│   │   ├── main.py
+│   │   ├── api_server.py
 │   │   └── robot_controller.py
-│   ├── client/              # Client applications
+│   ├── manual_cmd/  
 │   │   ├── manual_control.py
 │   │   ├── isaac_client.py
 │   │   └── skill_library.py
-│   └── common/              # Shared utilities
+│   └── common/
 │       ├── config.py
 │       └── logger.py
-├── logs/                    # Log files
-├── data/                    # Database files
-├── tests/                   # Unit tests
-└── docs/                    # Documentation
+├── logs/ 
+├── data/ 
+├── tests/ 
+└── docs/ 
 ```
 
 ## Quick Start
@@ -167,7 +167,7 @@ export LLM_PROVIDER=anthropic
 ### Project Layout
 
 - **Server** (`src/server/`): Runs inside Isaac Sim, controls the robot
-- **Client** (`src/client/`): External Python scripts for control
+- **Manual controll** (`src/client/`): External Python scripts for control
 - **Common** (`src/common/`): Shared configuration and utilities (logs)
 
 ### Adding New Commands
@@ -184,26 +184,6 @@ pytest tests/
 ```
 
 
-## Troubleshooting
-
-### Connection Refused
-- Ensure Isaac Sim server is running
-- Check port 8888 is not blocked
-
-### Robot Doesn't Move
-- Check Isaac Sim console for errors
-- Verify robot loaded correctly
-- Review `logs/server.log`
-
-### Skill Execution Fails
-- Check `logs/skills.log` for details
-- Verify skill code syntax
-- Ensure `client` object is available
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/JohnyTarbouch/voyager-robotic-isaac/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/JohnyTarbouch/voyager-robotic-isaac/discussions)
 
 ## Roadmap
 
