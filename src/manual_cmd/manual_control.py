@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from manual_cmd.isaac_client import IsaacSimClient
-from manual_cmd.skill_library import SkillLibrary
+from skill_library.skill_library_sqlite import SkillLibrary
 from common.logger import get_manualcmd_logger
 
 
