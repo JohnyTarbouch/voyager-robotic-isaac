@@ -2,18 +2,10 @@
 Robot Simulation Class
 """
 
-from omni.isaac.core import World
-from omni.isaac.core.utils.stage import add_reference_to_stage
-from omni.isaac.core.utils.nucleus import get_assets_root_path
-
 from server.robot_controller import RobotController
 from server.api_server import APIServer
-from common.config import (
-    ROBOT_PRIM_PATH, 
-    ROBOT_USD_PATH, 
-    SIMULATION_DT, 
-    SERVER_PORT
-)
+from manual_cmd.env_setup import EnvironmentSetup
+from common.config import SIMULATION_DT, SERVER_PORT
 from common.logger import get_server_logger, log_run_info
 
 
@@ -43,38 +35,8 @@ class RobotSimulation:
         self.logger.info("[1/4] Setting up Isaac Sim scene.")
         
         try:
-            # Create world
-            self.world = World(stage_units_in_meters=1.0)
-            self.world.scene.add_default_ground_plane()
-            self.logger.info("Ground plane added")
-            
-            # Get Robot USD
-            assets_root = get_assets_root_path()
-            if not assets_root:
-                self.logger.warning("No assets root found, using default.")
-                assets_root = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0"
-            
-            ROBOT_usd = f"{assets_root}/{ROBOT_USD_PATH}"
-            self.logger.info(f"Loading Robot from: {ROBOT_usd}")
-            
-            # Add Robot
-            add_reference_to_stage(usd_path=ROBOT_usd, prim_path=ROBOT_PRIM_PATH)
-            self.logger.info("Robot USD loaded")
-            
-            # Create robot controller
-            self.robot = RobotController(ROBOT_PRIM_PATH)
-            
-            # Reset world
-            self.logger.info("Resetting world")
-            self.world.reset()
-            self.logger.info("World reset complete")
-            
-            # Init controller
-            if self.robot.initialize():
-                self.logger.info(f"Robot controller initialized")
-            else:
-                self.logger.error("Failed to initialize robot controller")
-                return False
+            env = EnvironmentSetup()
+            self.world, self.robot = env.setup()
             
             self.logger.info("Scene setup complete!")
             return True
@@ -109,7 +71,7 @@ class RobotSimulation:
         self.logger.info("READY FOR COMMANDS")
         self.logger.info("="*70)
         self.logger.info(f"Server listening on port {SERVER_PORT}")
-        self.logger.info("Run client: python -m client.manual_control")
+        self.logger.info("Run client: python -m manual_cmd.manual_control")
         self.logger.info("")
         
         step_count = 0
@@ -126,10 +88,9 @@ class RobotSimulation:
                 self.logger.debug(f"Simulation running -> (step {step_count})")
     
     def shutdown(self):
-        """Clean shutdown"""
         self.logger.info("Shutting down.")
         
         if self.api_server:
             self.api_server.stop()
         
-        self.logger.info("Simulation stopped. Goodbye!")
+        self.logger.info("Simulation stopped.")

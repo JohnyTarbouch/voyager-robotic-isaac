@@ -16,7 +16,7 @@ def get_command_name():
     if len(sys.argv) > 0:
         # Get the script name without path and extension
         script_path = Path(sys.argv[0])
-        command_name = script_path.stem  # e.g., 'main' from 'main.py'
+        command_name = script_path.stem  # 'main' from 'main.py'
         return command_name
     return "unknown"
 
