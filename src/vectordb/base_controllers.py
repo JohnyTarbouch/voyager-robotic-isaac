@@ -5,11 +5,11 @@ import string
 class BaseController:
     
     def __init__(self):
-        self.base_dir = os.getcwd()
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
         
         self.database_dir = os.path.join(
-            self.base_dir, 
-            "assets/database"
+            self.base_dir,
+            "..", "..", "assets", "database"
         )
         
     def generate_random_string(self, length: int=12):

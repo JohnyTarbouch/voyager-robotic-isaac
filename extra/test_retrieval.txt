@@ -1,0 +1,7 @@
+Score: 0.7875
+Skill: pick_cube
+Description: Pick up a cube from the table using the robot gripper.
+
+Score: 0.1475
+Skill: rotate_base
+Description: Rotate the robot base by 90 degrees clockwise.

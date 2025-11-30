@@ -4,7 +4,8 @@ from src.vectordb.skill_embedding import SkillEmbedder
 from src.skill_library.skill_store import SkillStore
 from src.common.config import SKILL_EMBEDDING_MODEL
 
-class Config:
+
+class TestConfig:
     VECTOR_DB_PATH = "isaac_skills"
     VECTOR_DB_DISTANCE_METHOD = DistanceMethodEnums.COSINE.value
 
@@ -12,7 +13,7 @@ class Config:
 embedder = SkillEmbedder(SKILL_EMBEDDING_MODEL)
 EMBEDDING_DIM = embedder.dim
 
-factory = VectorDBProviderFactory(Config())
+factory = VectorDBProviderFactory(TestConfig())
 db = factory.create(VectorDBEnums.QDRANT.value)
 db.connect()
 
@@ -49,8 +50,7 @@ def execute(env):
 """,
 )
 
-
-store = SkillStore()
+store = SkillStore(db=db)
 
 results = store.retrieve("grab the cube")
 
@@ -60,10 +60,4 @@ for skill in results:
     print(f"Skill: {skill.skill_name}")
     print(f"Description: {skill.description}")
 
-
-print("\n=== Retrieved Skills ===")
-for skill in results:
-    print(f"\nScore: {skill.score:.4f}")
-    print(f"Skill: {skill.skill_name}")
-    print(f"Description: {skill.description}")
-db.disconnect() 
+db.disconnect()
