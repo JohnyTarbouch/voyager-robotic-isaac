@@ -1,6 +1,6 @@
 from .providers import QdrantDBProvider
 from .vectoredb_enums import VectorDBEnums
-from base_controllers import BaseController
+from .base_controllers import BaseController
 
 class VectorDBProviderFactory:
     def __init__(self, config):
@@ -16,4 +16,4 @@ class VectorDBProviderFactory:
                 distance_method=self.config.VECTOR_DB_DISTANCE_METHOD,
             )
         
-        return None
+        raise ValueError(f"Unsupported vector DB provider: {provider}")

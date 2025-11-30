@@ -5,8 +5,10 @@ import string
 class BaseController:
     
     def __init__(self):
+        self.base_dir = os.getcwd()
+        
         self.database_dir = os.path.join(
-            self.base_dir,
+            self.base_dir, 
             "assets/database"
         )
         

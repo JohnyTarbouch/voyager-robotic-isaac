@@ -42,6 +42,23 @@ SIMULATION_DT = 1.0 / SIMULATION_FPS
 # Database
 SKILLS_DB_PATH = DATA_DIR / "skills.db"
 
+VECTOR_DB_PROVIDER = "QDRANT"
+
+VECTOR_DB_DISTANCE_METHOD = "cosine"
+
+# Path is relative to DATA_DIR (already defined)
+VECTOR_DB_PATH = "skills_qdrant"
+
+SKILLS_COLLECTION_NAME = "skills"
+
+# Retrieval behavior
+SKILL_RETRIEVAL_TOP_K = 5
+SKILL_RETRIEVAL_SCORE_THRESHOLD = 0.3
+
+# Embedding
+SKILL_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

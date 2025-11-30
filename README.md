@@ -55,19 +55,21 @@ voyager-robotic-isaac/
 git clone https://github.com/JohnyTarbouch/voyager-robotic-isaac.git
 cd voyager-robotic-isaac
 ```
-
-2. **Install dependencies** (for LLM features)
+2. **Create and activate enviroment**
 ```bash
-pip install anthropic  # For Claude
-# OR
-pip install openai     # For GPT-4
+python -m venv .venv
+.venv\Scripts\activate
+```
+3. **Install dependencies** 
+```bash
+pip install -r requirements.txt
 ```
 
-3. **Set API key** (optional, for autonomous mode)
+4. **Set API key**
 ```bash
-export ANTHROPIC_API_KEY='your-key-here'
-# OR
-export OPENAI_API_KEY='your-key-here'
+# copy env
+cp .env.example .env
+# Then fill your key 
 ```
 
 ### Running the Server

@@ -1,5 +1,4 @@
 from .base_controllers import BaseController
 from .vectordb_interface import VectorDBInterface
-from .vectordb_provider_factory import VectorDBProviderFactory
 from .vectordb_providor import VectorDBProviderFactory
 from .vectoredb_enums import VectorDBEnums, DistanceMethodEnums
