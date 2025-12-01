@@ -7,7 +7,7 @@ from server.api_server import APIServer
 from manual_cmd.env_setup import EnvironmentSetup
 from common.config import SIMULATION_DT, SERVER_PORT
 from common.logger import get_server_logger, log_run_info
-
+from omni.isaac.kit import SimulationApp
 
 class RobotSimulation:
     """
@@ -64,7 +64,7 @@ class RobotSimulation:
             self.logger.error(f"Failed to start API server: {e}", exc_info=True)
             return False
     
-    def run_simulation_loop(self):
+    def run_simulation_loop(self, simulation_app: SimulationApp):
         """Main simulation loop"""
         self.logger.info("[4/4] Simulation running.")
         self.logger.info("="*70)
@@ -75,7 +75,7 @@ class RobotSimulation:
         self.logger.info("")
         
         step_count = 0
-        while True:
+        while simulation_app.is_running():
             # Update robot movement
             if self.api_server:
                 self.api_server.update(SIMULATION_DT)

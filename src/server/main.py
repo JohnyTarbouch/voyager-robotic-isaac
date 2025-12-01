@@ -35,7 +35,7 @@ def main():
             return
         
         # Run simulation loop
-        sim.run_simulation_loop()
+        sim.run_simulation_loop(simulation_app)
         
     except KeyboardInterrupt:
         logger.info("Shutdown requested by user")
