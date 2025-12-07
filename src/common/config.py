@@ -2,13 +2,18 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 LOGS_DIR = PROJECT_ROOT / "logs"
 DATA_DIR = PROJECT_ROOT / "data"
+AGENT_DIR = PROJECT_ROOT / "agent"
 
 LOGS_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
+AGENT_DIR.mkdir(exist_ok=True)
 
 # Extract command name from sys.argv
 def get_command_name():
@@ -47,7 +52,8 @@ VECTOR_DB_PROVIDER = "QDRANT"
 VECTOR_DB_DISTANCE_METHOD = "cosine"
 
 # Path is relative to DATA_DIR (already defined)
-VECTOR_DB_PATH = "skills_qdrant"
+VECTOR_DB_PATH = r"C:\isaacsim\standalone_examples\voyager-robotic-isaac\data\skills_qdrant"
+
 
 SKILLS_COLLECTION_NAME = "skills"
 
@@ -66,11 +72,10 @@ LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 CONSOLIDATED_LOG_FILE = RUN_LOG_DIR / "robot_system.log"
 
-# LLM config
-LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'anthropic') 
-LLM_MODEL = os.getenv('LLM_MODEL', 'claude-sonnet-4-20250514')
+# -------------------------
+# LLM CONFIG (loaded from .env)
+# -------------------------
+LLM_PROVIDER = os.getenv("LLM_BASE_URL")     
+LLM_MODEL = os.getenv("LLM_MODEL")  
+OPENAI_API_KEY = os.getenv("LLM_API_KEY")
 LLM_MAX_RETRIES = 3
-
-# API keys
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
