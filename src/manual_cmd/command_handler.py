@@ -1,176 +1,223 @@
+"""
+Command Handler - Updated for articulation-based control
+Key change: Movement is now velocity-based, not position-based
+"""
+
 from typing import Dict, Any
+import math
+import time
 
 
 class CommandHandler:
     """
-    Handles robot commands and movement state
+    Handle robot commands with velocity-based movement
     """
     
     def __init__(self, robot_controller, logger):
-        """
-        Initialize command handler
-        
-        Args:
-            robot_controller: Robot controller instance
-            logger: Logger instance
-        """
         self.robot = robot_controller
         self.logger = logger
         
-        # Movement state
-        self.linear_velocity = 0.0
-        self.angular_velocity = 0.0
+        # Movement state for timed commands
+        self.current_velocity = {'forward': 0.0, 'rotation': 0.0}
+        self.movement_start_time = None
+        self.movement_duration = 0.0
+        self.is_moving = False
+        
+        self.logger.info("CommandHandler initialized (velocity-based control)")
     
     def handle(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Handle a command action
+        Handle incoming command
         
         Args:
-            action: Action to perform
-            params: Parameters for the action
-        
+            action: Command action string
+            params: Command parameters
+            
         Returns:
             Response dictionary
         """
-        if action == 'move_forward':
-            return self._move_forward(params)
-            
-        elif action == 'move_backward':
-            return self._move_backward(params)
-            
-        elif action == 'turn_left':
-            return self._turn_left(params)
-            
-        elif action == 'turn_right':
-            return self._turn_right(params)
-            
-        elif action == 'stop':
-            return self._stop()
-            
-        elif action == 'get_state':
-            return self._get_state()
-            
+        handlers = {
+            'move_forward': self._handle_move_forward,
+            'move_backward': self._handle_move_backward,
+            'turn_left': self._handle_turn_left,
+            'turn_right': self._handle_turn_right,
+            'stop': self._handle_stop,
+            'get_position': self._handle_get_position,
+            'get_orientation': self._handle_get_orientation,
+            'custom_move': self._handle_custom_move,
+        }
+        
+        handler = handlers.get(action)
+        if handler:
+            return handler(params)
         else:
-            self.logger.warning(f"Unknown action: {action}")
-            return {'success': False, 'error': f'Unknown action: {action}'}
+            return {
+                'success': False,
+                'error': f'Unknown action: {action}'
+            }
     
-    def update(self, dt: float):
-        """
-        Update robot movement
+    def _handle_move_forward(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Move forward for specified distance or time"""
+        distance = params.get('distance', 1.0)  # meters
+        speed = params.get('speed', 0.5)  # m/s
         
-        Args:
-            dt: Delta time since last update
-        """
-        if abs(self.linear_velocity) > 0.001 or abs(self.angular_velocity) > 0.001:
-            self.robot.move_by(
-                forward=self.linear_velocity,
-                rotation=self.angular_velocity,
-                dt=dt
-            )
-            self.logger.debug(
-                f"Robot updated: linear_velocity={self.linear_velocity}, "
-                f"angular_velocity={self.angular_velocity}, dt={dt}"
-            )
-    
-    # Command implementations
-    
-    def _move_forward(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        speed = params.get('speed', 0.5)
-        distance = params.get('distance', 1.0)
-        
-        self.linear_velocity = speed
-        self.angular_velocity = 0.0
+        # Calculate duration needed
         duration = distance / speed
         
-        self.logger.debug(f"Moving forward: {distance} at {speed} (duration: {duration:.2f}s)")
+        # Start movement
+        self.current_velocity = {'forward': speed, 'rotation': 0.0}
+        self.movement_start_time = time.time()
+        self.movement_duration = duration
+        self.is_moving = True
+        
+        self.robot.move_by(forward=speed, rotation=0.0)
         
         return {
             'success': True,
-            'duration': duration,
-            'message': f'Moving forward {distance} at {speed}'
+            'message': f'Moving forward {distance}m at {speed}m/s',
+            'duration': duration
         }
     
-    def _move_backward(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        speed = params.get('speed', 0.5)
+    def _handle_move_backward(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Move backward for specified distance or time"""
         distance = params.get('distance', 1.0)
+        speed = params.get('speed', 0.5)
         
-        self.linear_velocity = -speed
-        self.angular_velocity = 0.0
         duration = distance / speed
         
-        self.logger.debug(f"Moving backward: {distance} at {speed}")
+        self.current_velocity = {'forward': -speed, 'rotation': 0.0}
+        self.movement_start_time = time.time()
+        self.movement_duration = duration
+        self.is_moving = True
+        
+        self.robot.move_by(forward=-speed, rotation=0.0)
         
         return {
             'success': True,
-            'duration': duration,
-            'message': f'Moving backward {distance} at {speed}'
+            'message': f'Moving backward {distance}m at {speed}m/s',
+            'duration': duration
         }
     
-    def _turn_left(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        angular_speed = params.get('speed', 1.0)
+    def _handle_turn_left(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Turn left by specified angle"""
+        angle = params.get('angle', 90)  # degrees
+        angular_speed = params.get('angular_speed', 1.0)  # rad/s
+        
+        # Convert angle to radians
+        angle_rad = math.radians(angle)
+        
+        # Calculate duration
+        duration = abs(angle_rad / angular_speed)
+        
+        # Start rotation (positive = counter-clockwise = left)
+        self.current_velocity = {'forward': 0.0, 'rotation': angular_speed}
+        self.movement_start_time = time.time()
+        self.movement_duration = duration
+        self.is_moving = True
+        
+        self.robot.move_by(forward=0.0, rotation=angular_speed)
+        
+        return {
+            'success': True,
+            'message': f'Turning left {angle}° at {angular_speed}rad/s',
+            'duration': duration
+        }
+    
+    def _handle_turn_right(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Turn right by specified angle"""
         angle = params.get('angle', 90)
+        angular_speed = params.get('angular_speed', 1.0)
         
-        self.linear_velocity = 0.0
-        self.angular_velocity = angular_speed
-        duration = 1.5 
+        angle_rad = math.radians(angle)
+        duration = abs(angle_rad / angular_speed)
         
-        self.logger.debug(f"Turning left: {angle} at {angular_speed}")
+        # Negative rotation = clockwise = right
+        self.current_velocity = {'forward': 0.0, 'rotation': -angular_speed}
+        self.movement_start_time = time.time()
+        self.movement_duration = duration
+        self.is_moving = True
         
-        return {
-            'success': True,
-            'duration': duration,
-            'message': f'Turning left {angle}'
-        }
-    
-    def _turn_right(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        angular_speed = params.get('speed', 1.0)
-        angle = params.get('angle', 90)
-        
-        self.linear_velocity = 0.0
-        self.angular_velocity = -angular_speed
-        duration = 1.5 
-        
-        self.logger.debug(f"Turning right: {angle} at {angular_speed}")
+        self.robot.move_by(forward=0.0, rotation=-angular_speed)
         
         return {
             'success': True,
-            'duration': duration,
-            'message': f'Turning right {angle}'
+            'message': f'Turning right {angle}° at {angular_speed}rad/s',
+            'duration': duration
         }
     
-    def _stop(self) -> Dict[str, Any]:
-        self.linear_velocity = 0.0
-        self.angular_velocity = 0.0
-        
-        self.logger.debug("Robot stopped")
+    def _handle_stop(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Stop the robot immediately"""
+        self.robot.stop()
+        self.is_moving = False
+        self.current_velocity = {'forward': 0.0, 'rotation': 0.0}
         
         return {
             'success': True,
             'message': 'Robot stopped'
         }
     
-    def _get_state(self) -> Dict[str, Any]:
+    def _handle_get_position(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Get current robot position"""
         position = self.robot.get_position()
-        orientation = self.robot.get_orientation()
-        
-        state = {
-            'position': position,
-            'orientation': orientation,
-            'linear_velocity': {
-                'x': float(self.linear_velocity),
-                'y': 0.0,
-                'z': 0.0
-            },
-            'angular_velocity': {
-                'x': 0.0,
-                'y': 0.0,
-                'z': float(self.angular_velocity)
-            }
+        return {
+            'success': True,
+            'position': position
         }
+    
+    def _handle_get_orientation(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Get current robot orientation"""
+        orientation = self.robot.get_orientation()
+        return {
+            'success': True,
+            'orientation': orientation
+        }
+    
+    def _handle_custom_move(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Custom movement with direct velocity control
         
-        self.logger.debug(f"State query: position={position}")
+        Params:
+            forward: forward velocity (m/s)
+            rotation: angular velocity (rad/s)
+            duration: how long to move (seconds), optional
+        """
+        forward = params.get('forward', 0.0)
+        rotation = params.get('rotation', 0.0)
+        duration = params.get('duration', None)
+        
+        if duration:
+            # Timed movement
+            self.current_velocity = {'forward': forward, 'rotation': rotation}
+            self.movement_start_time = time.time()
+            self.movement_duration = duration
+            self.is_moving = True
+        
+        self.robot.move_by(forward=forward, rotation=rotation)
         
         return {
             'success': True,
-            'state': state
+            'message': f'Custom move: forward={forward}, rotation={rotation}',
+            'duration': duration
         }
+    
+    def update(self, dt: float):
+        """
+        Update movement state (called every simulation step)
+        
+        This checks if timed movements should stop
+        
+        Args:
+            dt: Delta time since last update
+        """
+        if not self.is_moving:
+            return
+        
+        # Check if movement duration has elapsed
+        elapsed = time.time() - self.movement_start_time
+        
+        if elapsed >= self.movement_duration:
+            # Stop the robot
+            self.robot.stop()
+            self.is_moving = False
+            self.current_velocity = {'forward': 0.0, 'rotation': 0.0}
+            self.logger.debug("Timed movement completed, robot stopped")
