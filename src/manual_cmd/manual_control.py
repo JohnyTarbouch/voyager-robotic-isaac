@@ -1,228 +1,261 @@
-import time
+"""
+Manual Robot Control Client
+Send commands to the robot server interactively
+"""
+
+import socket
+import json
 import sys
+import time
 from pathlib import Path
 
+# Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from manual_cmd.isaac_client import IsaacSimClient
-from skill_library.skill_library_sqlite import SkillLibrary
+from common.config import SERVER_HOST, SERVER_PORT
 from common.logger import get_manualcmd_logger
 
 
-class ManualControlCLI:
+class ManualController:
+    """Interactive manual controller for the robot"""
+    
     def __init__(self):
-        self.client = IsaacSimClient()
-        self.skills = SkillLibrary()
         self.logger = get_manualcmd_logger()
-        self.last_command = None
+        self.host = SERVER_HOST
+        self.port = SERVER_PORT
         
-        self.logger.info("Manual control CLI initialized")
+        self.logger.info("="*70)
+        self.logger.info("MANUAL ROBOT CONTROLLER")
+        self.logger.info(f"Connecting to: {self.host}:{self.port}")
+        self.logger.info("="*70)
     
-    def print_help(self):
-        print("\n=== ROBOT Manual Control ===\n")
-        print("Commands:")
-        print("  forward [distance] [speed]  - Move forward")
-        print("  backward [distance] [speed] - Move backward")
-        print("  left [angle] [speed]        - Turn left")
-        print("  right [angle] [speed]       - Turn right")
-        print("  square                      - Execute square pattern")
-        print("  save [name]                 - Save last command as skill")
-        print("  list                        - List saved skills")
-        print("  exec [skill_name]           - Execute saved skill")
-        print("  delete [skill_name]         - Delete a skill")
-        print("  stats                       - Show skill library stats")
-        print("  state                       - Get robot state")
-        print("  help                        - Show this help")
-        print("  quit                        - Exit\n")
+    def send_command(self, action: str, params: dict = None) -> dict:
+        """
+        Send command to robot server
+        
+        Args:
+            action: Command action
+            params: Command parameters
+            
+        Returns:
+            Response dictionary
+        """
+        if params is None:
+            params = {}
+        
+        command = {
+            'action': action,
+            'params': params
+        }
+        
+        try:
+            # Create socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5.0)
+            
+            # Connect
+            sock.connect((self.host, self.port))
+            
+            # Send command
+            sock.send(json.dumps(command).encode('utf-8'))
+            
+            # Receive response
+            response = sock.recv(4096).decode('utf-8')
+            result = json.loads(response)
+            
+            sock.close()
+            
+            return result
+            
+        except socket.timeout:
+            self.logger.error("Connection timeout")
+            return {'success': False, 'error': 'Connection timeout'}
+        except ConnectionRefusedError:
+            self.logger.error("Connection refused - is the server running?")
+            return {'success': False, 'error': 'Server not running'}
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+            return {'success': False, 'error': str(e)}
     
-    def run(self):
-        self.print_help()
+    def print_menu(self):
+        """Print command menu"""
+        print("\n" + "="*70)
+        print("ROBOT COMMANDS")
+        print("="*70)
+        print("Movement:")
+        print("  w - Move forward 1m")
+        print("  s - Move backward 1m")
+        print("  a - Turn left 90°")
+        print("  d - Turn right 90°")
+        print("  x - STOP")
+        print()
+        print("Custom:")
+        print("  f - Forward (custom distance)")
+        print("  b - Backward (custom distance)")
+        print("  l - Turn left (custom angle)")
+        print("  r - Turn right (custom angle)")
+        print()
+        print("Info:")
+        print("  p - Get position")
+        print("  o - Get orientation")
+        print()
+        print("System:")
+        print("  h - Show this menu")
+        print("  q - Quit")
+        print("="*70)
+    
+    def run_interactive(self):
+        """Run interactive control loop"""
+        self.print_menu()
+        
+        print("\nReady for commands! (press 'h' for help)")
         
         while True:
             try:
-                user_input = input("Command: ").strip().split()
+                # Get user input
+                cmd = input("\nCommand: ").strip().lower()
                 
-                if not user_input:
+                if not cmd:
                     continue
                 
-                cmd = user_input[0].lower()
-                
-                if cmd == 'quit':
-                    self.logger.info("User quit")
+                # Handle commands
+                if cmd == 'q':
+                    print("Stopping robot...")
+                    self.send_command('stop')
+                    print("Goodbye!")
                     break
                 
-                elif cmd == 'help':
-                    self.print_help()
+                elif cmd == 'h':
+                    self.print_menu()
                 
-                elif cmd == 'forward':
-                    self._cmd_forward(user_input)
+                elif cmd == 'w':
+                    print("Moving forward 1m...")
+                    result = self.send_command('move_forward', {
+                        'distance': 1.0,
+                        'speed': 0.5
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'backward':
-                    self._cmd_backward(user_input)
+                elif cmd == 's':
+                    print("Moving backward 1m...")
+                    result = self.send_command('move_backward', {
+                        'distance': 1.0,
+                        'speed': 0.5
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'left':
-                    self._cmd_left(user_input)
+                elif cmd == 'a':
+                    print("Turning left 90°...")
+                    result = self.send_command('turn_left', {
+                        'angle': 90,
+                        'angular_speed': 1.0
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'right':
-                    self._cmd_right(user_input)
+                elif cmd == 'd':
+                    print("Turning right 90°...")
+                    result = self.send_command('turn_right', {
+                        'angle': 90,
+                        'angular_speed': 1.0
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'square':
-                    self._cmd_square()
+                elif cmd == 'x':
+                    print("STOPPING...")
+                    result = self.send_command('stop')
+                    print(f"  → {result.get('message', 'Stopped')}")
                 
-                elif cmd == 'save':
-                    self._cmd_save(user_input)
+                elif cmd == 'f':
+                    distance = float(input("  Distance (m): "))
+                    speed = float(input("  Speed (m/s) [0.5]: ") or "0.5")
+                    print(f"Moving forward {distance}m at {speed}m/s...")
+                    result = self.send_command('move_forward', {
+                        'distance': distance,
+                        'speed': speed
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'list':
-                    self._cmd_list()
+                elif cmd == 'b':
+                    distance = float(input("  Distance (m): "))
+                    speed = float(input("  Speed (m/s) [0.5]: ") or "0.5")
+                    print(f"Moving backward {distance}m at {speed}m/s...")
+                    result = self.send_command('move_backward', {
+                        'distance': distance,
+                        'speed': speed
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'exec':
-                    self._cmd_exec(user_input)
+                elif cmd == 'l':
+                    angle = float(input("  Angle (degrees): "))
+                    speed = float(input("  Angular speed (rad/s) [1.0]: ") or "1.0")
+                    print(f"Turning left {angle}°...")
+                    result = self.send_command('turn_left', {
+                        'angle': angle,
+                        'angular_speed': speed
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'delete':
-                    self._cmd_delete(user_input)
+                elif cmd == 'r':
+                    angle = float(input("  Angle (degrees): "))
+                    speed = float(input("  Angular speed (rad/s) [1.0]: ") or "1.0")
+                    print(f"Turning right {angle}°...")
+                    result = self.send_command('turn_right', {
+                        'angle': angle,
+                        'angular_speed': speed
+                    })
+                    print(f"  → {result.get('message', result)}")
                 
-                elif cmd == 'stats':
-                    self._cmd_stats()
+                elif cmd == 'p':
+                    result = self.send_command('get_position')
+                    if result.get('success'):
+                        pos = result.get('position', {})
+                        print(f"  Position: x={pos.get('x', 0):.3f}, y={pos.get('y', 0):.3f}, z={pos.get('z', 0):.3f}")
+                    else:
+                        print(f"  Error: {result.get('error')}")
                 
-                elif cmd == 'state':
-                    self._cmd_state()
+                elif cmd == 'o':
+                    result = self.send_command('get_orientation')
+                    if result.get('success'):
+                        ori = result.get('orientation', {})
+                        print(f"  Orientation: w={ori.get('w', 1):.3f}, x={ori.get('x', 0):.3f}, y={ori.get('y', 0):.3f}, z={ori.get('z', 0):.3f}")
+                    else:
+                        print(f"  Error: {result.get('error')}")
                 
                 else:
-                    print(f"Unknown command: {cmd}. Type 'help' for commands.")
-            
+                    print(f"Unknown command: '{cmd}' (press 'h' for help)")
+                
             except KeyboardInterrupt:
-                self.logger.info("Interrupted by user")
+                print("\n\nStopping robot...")
+                self.send_command('stop')
+                print("Goodbye!")
                 break
-            
+            except ValueError as e:
+                print(f"Invalid input: {e}")
             except Exception as e:
-                self.logger.error(f"Command error: {e}", exc_info=True)
-    
-    def _cmd_forward(self, args):
-        distance = float(args[1]) if len(args) > 1 else 1.0
-        speed = float(args[2]) if len(args) > 2 else 0.5
-        response = self.client.move_forward(distance, speed)
-        self.last_command = f"client.move_forward({distance}, {speed})"
-    
-    def _cmd_backward(self, args):
-        distance = float(args[1]) if len(args) > 1 else 1.0
-        speed = float(args[2]) if len(args) > 2 else 0.5
-        response = self.client.move_backward(distance, speed)
-        self.last_command = f"client.move_backward({distance}, {speed})"
-    
-    def _cmd_left(self, args):
-        angle = float(args[1]) if len(args) > 1 else 90
-        speed = float(args[2]) if len(args) > 2 else 0.3
-        response = self.client.turn_left(angle, speed)
-        self.last_command = f"client.turn_left({angle}, {speed})"
-    
-    def _cmd_right(self, args):
-        angle = float(args[1]) if len(args) > 1 else 90
-        speed = float(args[2]) if len(args) > 2 else 0.3
-        response = self.client.turn_right(angle, speed)
-        self.last_command = f"client.turn_right({angle}, {speed})"
-    
-    def _cmd_square(self):
-        for i in range(4):
-            print(f"  Side {i+1}...")
-            self.client.move_forward(1.0, 0.5)
-            time.sleep(0.5)
-            self.client.turn_right(90, 0.3)
-            time.sleep(0.5)
-        self.last_command = """for i in range(4):
-    client.move_forward(1.0, 0.5)
-    time.sleep(0.5)
-    client.turn_right(90, 0.3)
-    time.sleep(0.5)"""
-    
-    def _cmd_save(self, args):
-        if len(args) < 2:
-            print("Usage: save [skill_name]")
-            return
-        
-        skill_name = args[1]
-        if self.last_command:
-            if self.skills.add_skill(skill_name, self.last_command, 
-                                    f"Saved skill: {skill_name}"):
-                print(f"Skill '{skill_name}' saved")
-            else:
-                print(f"Skill '{skill_name}' already exists")
-        else:
-            print("No command to save")
-    
-    def _cmd_list(self):
-        print("\n=== Skill Library ===")
-        skill_list = self.skills.list_skills()
-        
-        if not skill_list:
-            print(" No skills saved yet")
-        else:
-            for name, desc, success, failure in skill_list:
-                print(f"  {name}: {desc} (✓{success} ✗{failure})")
-        print()
-    
-    def _cmd_exec(self, args):
-        if len(args) < 2:
-            print("Usage: exec [skill_name]")
-            return
-        
-        skill_name = args[1]
-        skill = self.skills.get_skill(skill_name)
-        
-        if skill:
-            print(f"Executing skill: {skill_name}")
-            print(f"Code: {skill['code']}")
-            try:
-                exec_context = {
-                    'client': self.client,
-                    'time': time,
-                    'print': print
-                }
-                exec(skill['code'], exec_context)
-                self.skills.record_success(skill_name)
-                print(f"Skill '{skill_name}' executed successfully")
-            except Exception as e:
-                self.skills.record_failure(skill_name)
-                print(f"Skill '{skill_name}' execution failed: {e}")
-        else:
-            print(f"Skill '{skill_name}' not found")
-    
-    def _cmd_delete(self, args):
-        if len(args) < 2:
-            print("Usage: delete [skill_name]")
-            return
-        
-        skill_name = args[1]
-        if self.skills.delete_skill(skill_name):
-            print(f"Skill '{skill_name}' deleted")
-        else:
-            print(f"Skill '{skill_name}' not found")
-    
-    def _cmd_stats(self):
-        stats = self.skills.get_stats()
-        print("\n=== Skill Library Statistics ===")
-        print(f"  Total skills: {stats['total_skills']}")
-        print(f"  Total successes: {stats['total_successes']}")
-        print(f"  Total failures: {stats['total_failures']}")
-        if stats['total_successes'] + stats['total_failures'] > 0:
-            success_rate = stats['total_successes'] / (stats['total_successes'] + stats['total_failures']) * 100
-            print(f"  Success rate: {success_rate:.1f}%")
-        print()
-    
-    def _cmd_state(self):
-        response = self.client.get_state()
-        if response.get('success'):
-            state = response.get('state', {})
-            pos = state.get('position', {})
-            print(f"\nRobot State:")
-            print(f"  Position: x={pos.get('x', 0):.2f}, y={pos.get('y', 0):.2f}, z={pos.get('z', 0):.2f}")
-            print()
-        else:
-            print(f"Failed to get state: {response.get('error')}")
+                self.logger.error(f"Error: {e}", exc_info=True)
+                print(f"Error: {e}")
 
 
 def main():
-    cli = ManualControlCLI()
-    cli.run()
+    """Main entry point"""
+    controller = ManualController()
+    
+    # Test connection
+    print("\nTesting connection to server...")
+    result = controller.send_command('get_position')
+    
+    if result.get('success'):
+        print("✓ Connected successfully!")
+        pos = result.get('position', {})
+        print(f"✓ Robot position: x={pos.get('x', 0):.2f}, y={pos.get('y', 0):.2f}, z={pos.get('z', 0):.2f}")
+    else:
+        print(f"✗ Connection failed: {result.get('error')}")
+        print("\nMake sure the server is running:")
+        print("  python.bat C:\\isaacsim\\standalone_examples\\voyager-robotic-isaac\\src\\server\\main.py")
+        return
+    
+    # Run interactive mode
+    controller.run_interactive()
 
 
 if __name__ == '__main__':
