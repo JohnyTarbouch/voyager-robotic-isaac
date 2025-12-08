@@ -214,3 +214,5 @@ __marimo__/
 logs/
 data/
 assets/database/
+src/voyager_agent/
+src/agent/
