@@ -2,7 +2,7 @@
 import json
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
-
+#chanege req log
 LOG_PATH = r"C:\isaacsim\standalone_examples\voyager-robotic-isaac-0\robot_voyager\logs\20251216_224929\metrics.jsonl"
 
 
@@ -27,7 +27,6 @@ def uniquify(name: str, seen: dict) -> str:
 
 
 def parse_from_session_end(events):
-    """Best path when session_end exists: it has per-task attempt details."""
     session_end = None
     for e in events:
         if e.get("event") == "session_end":
@@ -55,8 +54,6 @@ def parse_from_session_end(events):
 
         success = t.get("success")
         if isinstance(success, bool):
-            # If counts don't reconcile, fall back to the known invariant:
-            # a succeeded task has exactly 1 successful attempt, failures are the rest.
             if total and (success_attempts + failed_attempts) != total:
                 if success:
                     success_attempts = 1
@@ -65,9 +62,8 @@ def parse_from_session_end(events):
                     success_attempts = 0
                     failed_attempts = total
         else:
-            success = None  # unknown
+            success = None 
 
-        # If a task says success but we somehow saw 0 success attempts, fix it.
         if success is True and success_attempts == 0 and total:
             success_attempts = 1
             failed_attempts = max(total - 1, 0)
@@ -86,7 +82,6 @@ def parse_from_session_end(events):
 
 
 def parse_streaming(events, max_attempts):
-    """Fallback when session_end isn't present: infer from task_start/attempt_end/task_end."""
     tasks = []
     seen = {}
 
@@ -96,24 +91,20 @@ def parse_streaming(events, max_attempts):
         if not run:
             return
 
-        # infer total attempts
         total = run["max_attempt"]
         if run["attempt_ends"]:
             total = max(total, len(run["attempt_ends"]))
 
-        # infer success if missing task_end
         if run["success"] is None:
             if any(run["attempt_ends"]):
                 run["success"] = True
             elif max_attempts is not None and total >= max_attempts:
                 run["success"] = False
 
-        # derive success/failed attempts split
         if run["attempt_ends"]:
             success_attempts = sum(1 for x in run["attempt_ends"] if x is True)
             failed_attempts = sum(1 for x in run["attempt_ends"] if x is False)
         else:
-            # no per-attempt verifier info; fall back to invariant
             if run["success"] is True and total:
                 success_attempts = 1
                 failed_attempts = max(total - 1, 0)
@@ -171,7 +162,6 @@ def parse_streaming(events, max_attempts):
     return tasks
 
 
-# -------- main --------
 events = load_jsonl(LOG_PATH)
 max_attempts = get_max_attempts(events)
 
@@ -192,14 +182,12 @@ def status_char(s):
 
 statuses = [status_char(t["success"]) for t in tasks]
 
-# x labels (truncate)
 xt = [n if len(n) <= 28 else (n[:25] + "...") for n in names]
 
 fig, ax = plt.subplots(figsize=(12, 6))
 
 x = list(range(len(tasks)))
 
-# Stacked bars: failed attempts (red) + successful attempts (green)
 ax.bar(x, failed, color="red", alpha=0.7, edgecolor="black", label="Failed attempts")
 ax.bar(x, succ_att, bottom=failed, color="green", alpha=0.7, edgecolor="black", label="Successful attempt")
 
@@ -209,18 +197,15 @@ ax.set_ylabel("Attempts", fontsize=12)
 ax.set_xlabel("Task", fontsize=12)
 ax.set_title("Voyager Training: Tasks & Attempts", fontsize=14, fontweight="bold")
 
-# max_attempts reference line
 top = max(total) if total else 1
 if isinstance(max_attempts, int):
     top = max(top, max_attempts)
     ax.axhline(max_attempts, linestyle="--", linewidth=1)
 ax.set_ylim(0, top + 0.75)
 
-# annotate total + final status above each bar
 for i in range(len(tasks)):
     ax.text(i, total[i] + 0.08, statuses[i], ha="center", va="bottom", fontsize=14, fontweight="bold")
 
-# stats box (final task outcomes)
 succ_tasks = sum(1 for t in tasks if t["success"] is True)
 fail_tasks = sum(1 for t in tasks if t["success"] is False)
 unk_tasks = sum(1 for t in tasks if t["success"] is None)

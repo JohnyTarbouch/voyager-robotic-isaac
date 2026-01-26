@@ -1,5 +1,3 @@
-"""Vector database module for skill storage and retrieval"""
-
 import os
 from typing import Optional
 
