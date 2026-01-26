@@ -216,3 +216,13 @@ data/
 assets/database/
 src/voyager_agent/
 src/agent/
+robot_voyager_working_pyramid.zip
+robot_voyager/enviroment/*
+!robot_voyager/enviroment/isaac_franka.py
+robot_voyager/skills/vector_db/*
+
+robot_voyager/apps/*
+!robot_voyager/apps/run_voyager.py
+robot_voyager/agent/curriculum.py
+robot_voyager/agent/runner.py
+robot_voyager/agent/verifier.py

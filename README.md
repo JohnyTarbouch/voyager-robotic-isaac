@@ -1,197 +1,151 @@
-# Voyager-Style Autonomous Robot Agent for Isaac Sim
+# Robot Voyager 
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Isaac Sim](https://img.shields.io/badge/Isaac%20Sim-5.0-green)](https://developer.nvidia.com/isaac-sim)
 
 
-> An open-ended embodied agent that learns to control a robot through LLM-powered code generation and skill accumulation, inspired by the [Voyager project](https://voyager.minedojo.org/). This is a Project at my University
+A **Voyager-style autonomous skill learning agent** for robotic manipulation in Isaac Sim.
 
-## Features
+Inspired by [MineDojo/Voyager](https://github.com/MineDojo/Voyager), this system:
+- Uses an LLM to **generate robot skills** (Python code)
+- Learns through **trial and error** in simulation
+- Builds a **skill library**
+- Follows a **curriculum** of progressively harder tasks
+- Stores only **verified successful** skills
 
-- **LLM Integration**: Claude or GPT for code generation
-- **Skill Library**: SQLite-based storage for learned behaviors
-- **Autonomous Learning**: Self-improvement through experience
-- **Manual cmd**: Direct robot control without LLM
-- **Comprehensive Logging**: Detailed logs for debugging and analysis
-- **Modular Architecture**: Clean separation of concerns
-- **Socket API**: Flexible client-server architecture
+NOTE: we also implement a manual controll, and manual critic.
 
+## Start
 
+### 1. Setup Environment
 
-## Project Structure
-
-```
-voyager-robotic-isaac/
-├── src/
-│   ├── server/  
-│   │   ├── main.py
-│   │   ├── api_server.py
-│   │   └── robot_controller.py
-│   ├── manual_cmd/  
-│   │   ├── manual_control.py
-│   │   ├── isaac_client.py
-│   │   └── skill_library.py
-│   └── common/
-│       ├── config.py
-│       └── logger.py
-├── logs/ 
-├── data/ 
-├── tests/ 
-└── docs/ 
-```
-
-## Quick Start
-
-### Prerequisites
-
-- NVIDIA Isaac Sim 5.0
-- Python 3.10+
-- (Optional) Anthropic or OpenAI API key
-
-### Installation
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/JohnyTarbouch/voyager-robotic-isaac.git
-cd voyager-robotic-isaac
-```
-2. **Create and activate enviroment**
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-3. **Install dependencies** 
-```bash
+# Clone/download this project (best to clone in stand alone in isaacsim)
+cd robot_voyager
+
+# Create virtual environment
+conda create --name isaacsim
+
+conda activate isaacsim
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-4. **Set API key**
-```bash
-# copy env
+# Configure LLM
 cp .env.example .env
-# Then fill your key 
+# Edit .env with your LLM endpoint and API key
 ```
 
-### Running the Server
+
+
+### 2. Run with Isaac Sim (Franka + RMPflow)
 
 ```bash
-# Navigate to Isaac Sim directory
-cd isaacsim
+# Full agent
+C:\isaacsim\python.bat -m apps.run_voyager --max-tasks 10
 
-# Run the server (I just used windows)
-python.bat C:\isaacsim\standalone_examples\voyager-robotic-isaac\src\server\main.py
-```
-
-Wait for: `READY FOR COMMANDS`
-
-### Running the Client
-
-In a new terminal:
-
-```bash
-cd isaacsim
-python.bat C:\isaacsim\standalone_examples\voyager-robotic-isaac\src\manual_cmd\manual_control.py
-```
-
-## Usage Examples
-
-### Manual Control
+# Only for testing  
+C:\isaacsim\python.bat -m apps.run_agent --backend isaac_rmpflow_franka
 
 ```
-Command: forward 2          # Move 2m forward
-Command: left 90            # Turn left 90 deg
-Command: square             # Execute square pattern
-Command: save my_square     # Save as skill
-Command: list               # View all skills
-Command: exec my_square     # Execute saved skill
-Command: stats              # Show statistics
-```
-
-## Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `forward [dist] [speed]` | Move forward | `forward 2 0.5` |
-| `backward [dist] [speed]` | Move backward | `backward 1` |
-| `left [angle] [speed]` | Turn left | `left 90` |
-| `right [angle] [speed]` | Turn right | `right 45` |
-| `square` | Execute square pattern | `square` |
-| `save [name]` | Save last command | `save my_move` |
-| `list` | List all skills | `list` |
-| `exec [name]` | Execute skill | `exec my_move` |
-| `delete [name]` | Delete skill | `delete my_move` |
-| `stats` | Show statistics | `stats` |
-| `state` | Get robot state | `state` |
-| `help` | Show help | `help` |
-| `quit` | Exit | `quit` |
-
-
-
-### With LLM (TODO)
-
-```bash
-python -m src.client.agent
-
-Agent> task move in a square pattern
-Agent> task explore the environment
-Agent> skills # Learned skills
-```
-
-## Logging
-
-All operations are logged to `logs/` directory:
-
-- `server.log` - Isaac Sim server events
-- `client.log` - Client operations
-- `commands.log` - Command execution details
-- `skills.log` - Skill library operations
 
 ## Configuration
 
-Edit `src/common/config.py` to customize:
-
-- Server host and port
-- Robot parameters
-- Movement defaults
-- Log levels and formats
-- Database paths
-
-Or use environment variables:
+### Environment Variables (.env)
 
 ```bash
-export ROBOT_SERVER_PORT=8888
-export LOG_LEVEL=DEBUG
-export LLM_PROVIDER=anthropic
+# LLM endpoint (OpenAI-compatible)
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=your-key
+LLM_MODEL=gpt
+
+# Agent settings
+AGENT_MAX_ATTEMPTS=3
+AGENT_TIMEOUT_S=25
 ```
 
-## Development
-
-### Project Layout
-
-- **Server** (`src/server/`): Runs inside Isaac Sim, controls the robot
-- **Manual controll** (`src/client/`): External Python scripts for control
-- **Common** (`src/common/`): Shared configuration and utilities (logs)
-
-### Adding New Commands
-
-1. Add handler in `src/server/api_server.py`
-2. Add client method in `src/client/isaac_client.py`
-
-### Testing
+### Command Line Options
 
 ```bash
-# Run unit tests
-pytest tests/
+python -m apps.run_voyager --help
 
+Options:
+  --headless # Isaac Sim headless mode
+  --max-attempts N # Max attempts
 ```
 
 
+## How It Works
 
-## Roadmap
+### The Learning Loop
 
-- [ ] LLM agent implementation
-- [ ] Vision integration (camera input)
-- [ ] Obstacle avoidance
-- [ ] Multi-robot coordination
-- [ ] Curriculum learning
+1. **Curriculum** provides the next task (example "pick up the cube")
+2. **Skill Library** retrieves relevant existing skills via vector similarity
+3. **Planner** asks LLM to generate Python code for the task
+4. **Sandbox** executes the code on the robot
+5. **Verifier** checks if the task succeeded (cube height > threshold)
+6. **On Success**: Skill is saved to vector DB
+7. **On Failure**: LLM-critic reflects on error and tries again (up to N attempts)
+
+### Skills
+
+Skills are Python modules with this structure:
+
+```python
+SKILL_METADATA = {
+    "name": "pick_cube",
+    "description": "Pick up a cube from the table",
+    "tags": ["manipulation", "pick", "cube", "gripper"],
+}
+
+def run(robot, **kwargs) -> bool:
+    """Execute the skill. Return True on success."""
+    robot.log("Starting pick_cube")
+    
+    # Get cube position
+    cube_pos = robot.get_object_position("cube")
+    
+    # Approach from above
+    robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.15))
+    robot.open_gripper()
+    
+    # Descend to cube
+    robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.02))
+    
+    # Grasp
+    robot.close_gripper()
+    
+    # Lift
+    robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.20))
+    
+    robot.log("pick_cube complete")
+    return True
+```
+
+### Robot API
+
+All skills use this interface:
+
+```python
+# Motion
+robot.move_ee(target_xyz, timeout_s=10, pos_tolerance=0.02) -> bool
+
+# Environment
+robot.list_objects() -> ["cube", "sphere", ...]
+robot.get_object_position("cube") -> (x, y, z)
+robot.get_target_position() -> (x, y, z)
+
+```
+
+
+
+
+
+
+
+## References
+
+- [Voyager Paper](https://arxiv.org/abs/2305.16291) - Original Minecraft agent
+- [MineDojo/Voyager](https://github.com/MineDojo/Voyager) - Reference implementation
+- [Isaac Sim](https://developer.nvidia.com/isaac-sim) - NVIDIA robotics simulator
 
