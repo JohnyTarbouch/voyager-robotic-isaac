@@ -59,6 +59,11 @@ GUIDELINES FOR WRITING SKILLS:
 4. Prefer composing existing skills over direct robot.* calls; only use robot.* for steps not covered by available skills.
 5. Keep skills atomic - do one thing well.
 6. Include useful tags (e.g., ["motion", "reach"], ["manipulation", "pick"]).
+7. GENERALIZATION:
+   - Avoid hard-coding object IDs (cube1/cube2/...) or fixed target positions.
+   - Use parameters like cube_name / object_name and target_xy / target_xyz.
+   - If the task mentions a specific cube/target, set DEFAULTS from the task so the skill still succeeds now.
+   - Skill names must be generic (e.g., "pick_cube", "pick_and_place_cube"), NO numeric suffixes.
 
 CRITICAL FOR MOTION:
 - ALWAYS use pos_tolerance >= 0.06 due to robot position offset

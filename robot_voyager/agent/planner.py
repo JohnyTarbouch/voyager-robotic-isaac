@@ -124,6 +124,9 @@ Requirements:
 - Gripper is physics-based - close_gripper() stops when touching object!
 - Check cube position after lift to verify success, not move_ee return value.
 - Include robot.log() calls for debugging.
+- Make the skill reusable: use kwargs like cube_name / object_name and target_xy / target_xyz.
+- If the task names a specific cube/target, set those as DEFAULTS in kwargs.
+- Skill name should be generic (no cube indices like cube1/cube2 in the name).
 - Output MUST be exactly one python code block.
 """
         

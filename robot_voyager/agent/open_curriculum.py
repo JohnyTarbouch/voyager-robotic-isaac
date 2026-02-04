@@ -67,6 +67,9 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
    - Robot can reach: x: 0.3-0.7, y: -0.4-0.4, z: 0.0-0.6
    - Gripper can grasp objects ~0.05m wide
    - Cubes are 0.05m x 0.05m x 0.05m
+6. Use generic task names (no cube indices like cube1/cube2 in the name).
+   - If a specific cube is needed, mention it in the description and success criteria.
+   - Avoid proposing multiple tasks that only differ by cube index.
 
 
 Respond with JSON only:

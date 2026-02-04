@@ -7,7 +7,7 @@ from agent.open_curriculum import OpenEndedCurriculum, OpenTask
 from agent.critic import CriticAgent
 from agent.planner import Planner 
 from agent.skill_library import SkillLibrary
-from agent.sandbox import run_skill
+from agent.sandbox import run_skill, extract_skill_metadata
 from agent.skill_executor import create_skill_context  
 from agent.metrics import MetricsLogger
 from agent.llm_client import LLMClient, LLMConfig
@@ -264,7 +264,9 @@ class VoyagerRunner:
             
             if critic_result['success']:
                 # Save the generated critic skill
-                skill_name = task.name.lower().replace(" ", "_").replace("-", "_")
+                meta = extract_skill_metadata(plan.code)
+                meta_name = (meta.get("name") or "").strip()
+                skill_name = meta_name or task.name.lower().replace(" ", "_").replace("-", "_")
                 skill_path = self.skills.save_generated(skill_name, plan.code) 
                 if skill_path:
                     self.skills_learned += 1
