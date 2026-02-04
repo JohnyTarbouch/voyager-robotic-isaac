@@ -148,6 +148,25 @@ class MetricsLogger:
         
         # Metrics log (JSON)
         self.metrics_file = self.session_dir / "metrics.jsonl"
+
+        # Robot/runtime log (captures robot.log via enviroment.* loggers)
+        self.robot_log_file = self.session_dir / "robot.log"
+        self._attach_file_logger("enviroment.isaac_franka", self.robot_log_file)
+
+    def _attach_file_logger(self, logger_name: str, log_path: Path) -> None:
+        """Attach a file handler to a logger if not already present."""
+        logger = logging.getLogger(logger_name)
+        log_path_str = str(log_path)
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler) and getattr(handler, "baseFilename", None) == log_path_str:
+                return
+        handler = logging.FileHandler(log_path_str, encoding="utf-8")
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        ))
+        logger.addHandler(handler)
+        if logger.level == logging.NOTSET:
+            logger.setLevel(logging.INFO)
     
     def start_session(self, backend: str, llm_model: str, max_attempts: int):
         """Start a new session."""
