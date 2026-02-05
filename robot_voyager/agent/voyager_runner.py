@@ -5,7 +5,7 @@ from typing import Optional
 
 from agent.open_curriculum import OpenEndedCurriculum, OpenTask
 from agent.critic import CriticAgent
-from agent.planner import Planner 
+from agent.planner import Planner, ReflectionResult 
 from agent.skill_library import SkillLibrary
 from agent.sandbox import run_skill, extract_skill_metadata
 from agent.skill_executor import create_skill_context  
@@ -203,6 +203,9 @@ class VoyagerRunner:
             k=16
         )
         
+        last_error: Optional[str] = None
+        last_reflection: Optional[ReflectionResult] = None
+
         for attempt in range(1, max_attempts + 1):
             self._print(f"\n  Attempt {attempt}/{max_attempts}", "cyan")
             
@@ -221,10 +224,14 @@ class VoyagerRunner:
                 observation=obs,
                 available_skills=retrieved,
                 attempt=attempt,
+                last_error=last_error,
+                reflection=last_reflection,
             )
             
             if not plan.code.strip():
                 self._print("No code generated", "yellow")
+                last_error = "No code generated"
+                last_reflection = None
                 self.metrics.end_attempt({}, False)
                 continue
             
@@ -239,8 +246,16 @@ class VoyagerRunner:
             post_state = dict(self.robot.get_observation())
             
             if not result.ok:
-                self._print(f"Execution error: {result.error[:100] if result.error else 'Unknown'}", "yellow")
-                self.metrics.log_execution_result(False, result.error, exec_time_ms)
+                error_msg = result.error or "Unknown execution error"
+                self._print(f"Execution error: {error_msg[:100]}", "yellow")
+                self.metrics.log_execution_result(False, error_msg, exec_time_ms)
+                last_error = error_msg
+                last_reflection = self.planner.reflect_on_failure(
+                    code=plan.code,
+                    error=error_msg,
+                    pre_state=pre_state,
+                    post_state=post_state,
+                )
                 self.metrics.end_attempt(post_state, False)
                 continue
             
@@ -273,6 +288,14 @@ class VoyagerRunner:
                     self._print(f"Skill saved: {skill_name}", "green")
                 
                 return True
+            else:
+                last_error = f"Critic failed: {critic_result['reasoning']}"
+                last_reflection = self.planner.reflect_on_failure(
+                    code=plan.code,
+                    error=last_error,
+                    pre_state=pre_state,
+                    post_state=post_state,
+                )
         
         return False
     
