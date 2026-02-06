@@ -70,6 +70,8 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
 6. Use generic task names (no cube indices like cube1/cube2 in the name).
    - If a specific cube is needed, mention it in the description and success criteria.
    - Avoid proposing multiple tasks that only differ by cube index.
+7. NEW FREE SPACE: For any placement or stacking task, choose target positions in a clearly free area,
+   far from current cube positions (>= 0.10m if possible), and avoid reusing current cube XY locations.
 
 
 Respond with JSON only:
