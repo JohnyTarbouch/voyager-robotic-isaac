@@ -68,16 +68,12 @@ GUIDELINES FOR WRITING SKILLS:
 CUBE-AWARE PLACEMENT (MANDATORY FOR ALL PLACEMENTS):
 - If the task says "next to", "beside", "adjacent", "left/right of", compute target from live positions using robot.get_object_position() for the referenced cube.
 - Never place a cube on top of another cube unless the task explicitly says stack/tower/pyramid.
-- For ANY placement (even absolute target_xy), choose a NEW FREE SPACE:
-  - The target XY must be at least 0.07m away from every other cube (excluding the cube being moved).
-  - Prefer a spot that is clearly separated (>= 0.10m) from all cubes if feasible.
-  - Do NOT reuse the exact XY of any existing cube.
-- If the desired target is too close to another cube, SEARCH for a FREE PLACE:
+- For ANY placement (even absolute target_xy), ensure the target XY is at least 0.07m away from every other cube (excluding the cube being moved).
+- If the target is too close to another cube, SEARCH for a FREE PLACE:
   - Try a small set of candidate offsets around the desired target (e.g., +/-0.06, +/-0.08, +/-0.10 in X/Y).
   - If still blocked, scan a coarse grid within reachable area (x: 0.3-0.7, y: -0.4-0.4) and pick the first free spot.
-- If no free spot exists, return False.
+  - If no free spot exists, return False.
 - For placement verification, check both XY distance to target and Z near table height (z <= 0.04) unless stacking is intended.
-  - Use an XY tolerance of 0.08m for success checks unless the task explicitly requires larger.
 - For stacking tasks, the BASE location must also be in a NEW FREE SPACE (use the same clearance rules) unless the task explicitly specifies a target.
 
 STACKING / PICKING SAFETY (MANDATORY):

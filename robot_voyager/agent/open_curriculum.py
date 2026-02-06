@@ -51,8 +51,8 @@ GUIDELINES FOR PROPOSING TASKS:
 3. Be CREATIVE! The environment has 4 colored cubes - explore possibilities!
 CRITICAL - SUCCESS CRITERIA TOLERANCES:
 - Robot has ~0.05m position offset - NEVER use tolerances < 0.05m!
-- For position verification, use tolerance of 0.08-0.10m (NOT SMALLER!)
-- Example good criteria: "cube within 0.08m of target position"
+- For position verification, use tolerance of 0.05-0.08m (NOT SMALLER!)
+- Example good criteria: "cube within 0.06m of target position"
 - Example BAD criteria: "cube within 0.01m of target" (impossible!)
 4. Task ideas with 4 cubes:
    - First start with easy tasks: pick-and-place one cube, reach target point
@@ -70,8 +70,6 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
 6. Use generic task names (no cube indices like cube1/cube2 in the name).
    - If a specific cube is needed, mention it in the description and success criteria.
    - Avoid proposing multiple tasks that only differ by cube index.
-7. NEW FREE SPACE: For any placement or stacking task, choose target positions in a clearly free area,
-   far from current cube positions (>= 0.10m if possible), and avoid reusing current cube XY locations.
 
 
 Respond with JSON only:
@@ -189,16 +187,16 @@ class OpenEndedCurriculum:
         
         criteria = task.success_criteria
         
-        # 0.08m tolerance
+        # 0.06m tolerance
         criteria = re.sub(
-            r'within\s+(0\.0[1-7])\s*m',
-            'within 0.08m',
+            r'within\s+(0\.0[1-4])\s*m',
+            'within 0.06m',
             criteria,
             flags=re.IGNORECASE
         )
         criteria = re.sub(
-            r'tolerance\s+of\s+(0\.0[1-7])',
-            'tolerance of 0.08',
+            r'tolerance\s+of\s+(0\.0[1-4])',
+            'tolerance of 0.06',
             criteria,
             flags=re.IGNORECASE
         )
