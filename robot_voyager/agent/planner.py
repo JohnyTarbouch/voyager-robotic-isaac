@@ -126,6 +126,7 @@ Requirements:
 - Include robot.log() calls for debugging.
 - Make the skill reusable: use kwargs like cube_name / object_name and target_xy / target_xyz.
 - If the task names a specific cube/target, set those as DEFAULTS in kwargs.
+- When calling an existing skill, pass only kwargs listed in that skill's accepted_kwargs.
 - Skill name should be generic (no cube indices like cube1/cube2 in the name).
 - Output MUST be exactly one python code block.
 """
@@ -223,6 +224,10 @@ Respond with JSON containing: analysis, root_cause, suggested_fixes (list), shou
             name = skill.get("name", "unnamed")
             desc = skill.get("description", "")[:100]
             tags = skill.get("tags", [])
-            lines.append(f"- {name}: {desc}; tags={tags}")
+            accepted_kwargs = skill.get("accepted_kwargs", [])
+            kwargs_note = ""
+            if accepted_kwargs:
+                kwargs_note = f"; accepted_kwargs={accepted_kwargs}"
+            lines.append(f"- {name}: {desc}; tags={tags}{kwargs_note}")
         
         return "\n".join(lines)
