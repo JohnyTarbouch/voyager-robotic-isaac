@@ -116,7 +116,12 @@ Analysis of previous failure:
 """
         
         user_prompt += """
-Write ONE NEW SKILL for this task.
+Write code to accomplish this task.
+
+**OPTION 1 - If an existing skill can do the job, just call it directly:**
+If "pick_and_place_cube" (or similar) is in the 'Available skills' list and matches the task, just call it.
+
+**OPTION 2 - If no existing skill matches, write a NEW skill:**
 Requirements:
 - Return True on success, False on failure.
 - Use robot.move_ee(...) with pos_tolerance >= 0.06 for approach/descend.
@@ -129,6 +134,27 @@ Requirements:
 - When calling an existing skill, pass only kwargs listed in that skill's accepted_kwargs.
 - Skill name should be generic (no cube indices like cube1/cube2 in the name).
 - Output MUST be exactly one python code block.
+
+**CRITICAL - ALWAYS REUSE EXISTING SKILLS:**
+- If "pick_and_place_cube" IS in the 'Available skills' list and the task requires pick-and-place -> CALL IT! Do NOT rewrite it and save it in the Vector Database!
+- If "pick_and_place_cube" is NOT in the list -> write the FULL implementation yourself
+- NEVER call skills.call("skill_name") if that skill is not in the available skills list!
+- If the task can be accomplished by calling ONE existing skill, just call that skill and return its result!
+
+Example - Task "Move cube1 to (0.6, 0.0)" with pick_and_place_cube available:
+```python
+# GOOD - just call the existing skill!
+def run(robot, **kwargs) -> bool:
+    return skills.call("pick_and_place_cube", cube_name="cube1", target_xy=(0.6, 0.0))
+```
+
+Example - BAD (do NOT rewrite existing functionality!):
+```python
+# BAD - rewrites pick_and_place from scratch when skill exists!
+def run(robot, **kwargs) -> bool:
+    cube = robot.get_object_position("cube1")
+    robot.move_ee(...)  # NO! Just call the existing skill!
+```
 """
         
         # Generate code

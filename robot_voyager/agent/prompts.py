@@ -108,6 +108,48 @@ SKILL COMPOSITION RULES:
 4. Only use raw robot.* calls for operations not covered by existing skills
 5. For multi-step tasks (pick AND place), prefer calling existing skills
 
+=== SKILL REUSE RULES ===
+**IMPORTANT: Only use skills that appear in the 'Available skills' list above!**
+
+1. FIRST, check the 'Available skills' list in this prompt to see what skills actually exist.
+   - Do NOT assume skills exist - only call skills you see in the list!
+   - If "pick_and_place_cube" is in the list -> use it and call it
+   - If it's NOT in the list → you must write the code yourself
+
+2. If a matching skill IS in the available list, use it:
+   ```python
+   def run(robot, **kwargs) -> bool:
+       if skills.has("pick_and_place_cube"):  # Always check first!
+           return skills.call("pick_and_place_cube", cube_name="cube1", target_xy=(0.6, 0.15))
+       # Fallback: write the code if skill doesn't exist
+   ```
+
+3. If NO matching skill exists in the available list:
+   - Write the full implementation using robot.* methods
+   - This is expected when starting fresh!
+
+4. NEVER call a skill that is not in the 'Available skills' list.
+
+Example - When skill EXISTS in available list:
+```python
+# Available skills shows: pick_and_place_cube
+def run(robot, **kwargs) -> bool:
+    return skills.call("pick_and_place_cube", cube_name="cube1", target_xy=(0.6, 0.15))
+```
+
+Example - When skill does NOT exist (write full code):
+```python
+# Available skills: open_gripper_skill, move_to_position, approach_object, close_gripper_skill
+# (no pick_and_place_cube!) → must implement it
+def run(robot, **kwargs) -> bool:
+    cube_name = kwargs.get("cube_name", "cube1")
+    target_xy = kwargs.get("target_xy", (0.6, 0.15))
+    
+    # Get cube position
+    cube = robot.get_object_position(cube_name)
+    # ... full pick and place implementation ...
+```
+
 Example - GOOD (uses existing pick skill):
 ```python
 def run(robot, **kwargs) -> bool:
@@ -311,6 +353,37 @@ def run(robot, **kwargs) -> bool:
     # Verify pyramid
     cube3_final = robot.get_object_position("cube3")
     return cube3_final[2] > 0.06  # Must be stacked (>6cm high)
+```
+
+CRITICAL FOR MULTI-OBJECT TASKS (towers, lines, pyramids, patterns):
+**Verify ALL objects at the END, not just after each step!**
+
+Physics can knock previously placed cubes when placing new ones. Per-step verification
+passes but the final structure is wrong. Always add a FINAL verification loop:
+
+```python
+def run(robot, **kwargs) -> bool:
+    cube_names = ["cube1", "cube2", "cube3"]
+    targets = [(0.5, 0.0, 0.02), (0.5, 0.0, 0.07), (0.5, 0.0, 0.12)]
+    
+    # Place each cube (with per-step checks for early failure)
+    for cube_name, target in zip(cube_names, targets):
+        # ... pick and place logic ...
+        # Per-step check is OK for early failure detection
+    
+    robot.log("=== FINAL STRUCTURE VERIFICATION ===")
+    all_ok = True
+    for cube_name, target in zip(cube_names, targets):
+        final_pos = robot.get_object_position(cube_name)
+        dist = ((final_pos[0] - target[0])**2 + 
+                (final_pos[1] - target[1])**2 + 
+                (final_pos[2] - target[2])**2)**0.5
+        robot.log(f"FINAL CHECK: {{cube_name}} at {{final_pos}}, target {{target}}, dist={{dist:.3f}}m")
+        if dist > 0.06:
+            robot.log(f"FAILED: {{cube_name}} not at target!")
+            all_ok = False
+    
+    return all_ok
 ```
 """
 

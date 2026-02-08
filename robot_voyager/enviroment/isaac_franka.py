@@ -28,6 +28,7 @@ class IsaacFrankaRobotAPI:
         self._pick_place_controller = None
         self._rmpflow = None
         self._articulation_rmpflow = None
+        self._log_buffer = []  
         
         self._setup_simulation()
 
@@ -463,6 +464,15 @@ class IsaacFrankaRobotAPI:
 
     def log(self, msg: str) -> None:
         logger.info(f"[IsaacFrankaRobotAPI] {msg}")
+        self._log_buffer.append(msg)  # Store in buffer for critic
+    
+    def clear_log_buffer(self) -> None:
+        self._log_buffer = []
+    
+    def get_execution_logs(self) -> str:
+        if not self._log_buffer:
+            return ""
+        return "\n".join(self._log_buffer)
 
     def close(self) -> None:
         if self._sim_app:
