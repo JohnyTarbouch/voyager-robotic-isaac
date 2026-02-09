@@ -53,7 +53,8 @@ class CriticAgent:
         task_description: str,
         pre_state: Dict[str, Any],
         post_state: Dict[str, Any],
-        executed_code: str = None
+        executed_code: str = None,
+        execution_logs: str = None
     ) -> Dict[str, Any]:
         """
         Verify if a task was completed successfully using LLM.
@@ -63,12 +64,24 @@ class CriticAgent:
             pre_state: Robot/environment state before execution
             post_state: Robot/environment state after execution
             executed_code: The code that was run (optional)
+            execution_logs: Logs from robot.log() during execution (optional)
             
         Returns:
             Dict with keys: success (bool), reasoning (str), confidence (float)
         """
         pre_formatted = self._format_state(pre_state)
         post_formatted = self._format_state(post_state)
+        
+        # exec logs
+        logs_section = ""
+        if execution_logs:
+            logs_section = f"""
+EXECUTION LOGS (from robot.log() - these contain pre-computed distances!):
+{execution_logs}
+
+IMPORTANT: The execution logs above contain computed distances from the skill code.
+If a log shows "Distance from target: X.XXXm" and X.XXX < tolerance (usually 0.06m), trust that calculation!
+"""                         
         
         user_prompt = f"""TASK: {task_description}
 
@@ -79,7 +92,7 @@ STATE AFTER:
 {post_formatted}
 
 {f'CODE EXECUTED:{chr(10)}{executed_code}' if executed_code else ''}
-
+{logs_section}
 Did this task succeed? Analyze the state changes and determine if the goal was achieved.
 Respond with JSON only: {{"success": true/false, "reasoning": "", "confidence": 0.0-1.0}}
 """

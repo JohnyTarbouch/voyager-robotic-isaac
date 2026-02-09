@@ -1,6 +1,7 @@
 import importlib.util
+import ast
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -13,6 +14,7 @@ class Skill:
     description: str
     tags: List[str]
     code: str
+    accepted_kwargs: List[str] = field(default_factory=list)
     path: Optional[Path] = None
     preconditions: Optional[Dict[str, Any]] = None
     effects: Optional[Dict[str, Any]] = None
@@ -24,6 +26,7 @@ class RetrievedSkill:
     description: str
     code: str
     score: float = 0.0
+    accepted_kwargs: Optional[List[str]] = None
     preconditions: Optional[Dict[str, Any]] = None
     effects: Optional[Dict[str, Any]] = None
 
@@ -33,6 +36,7 @@ class RetrievedSkill:
             "description": self.description,
             "code": self.code,
             "score": self.score,
+            "accepted_kwargs": self.accepted_kwargs,
             "preconditions": self.preconditions,
             "effects": self.effects,
         }
@@ -160,6 +164,7 @@ class SkillLibrary:
                 "name": s.name, 
                 "description": s.description, 
                 "tags": s.tags, 
+                "accepted_kwargs": s.accepted_kwargs,
                 "path": str(s.path) if s.path else None
             }
             for s in sorted(self._skills.values(), key=lambda x: x.name)
@@ -187,7 +192,14 @@ class SkillLibrary:
                     limit=k
                 )
                 if results:
-                    return [r.to_dict() for r in results]
+                    enriched = []
+                    for result in results:
+                        skill_dict = result.to_dict()
+                        loaded_skill = self._skills.get(skill_dict.get("name", ""))
+                        if loaded_skill:
+                            skill_dict["accepted_kwargs"] = loaded_skill.accepted_kwargs
+                        enriched.append(skill_dict)
+                    return enriched
             except Exception as e:
                 logger.warning(f"Vector search failed: {e}. Falling back to keyword.")
         
@@ -205,7 +217,12 @@ class SkillLibrary:
         
         scored.sort(key=lambda x: x[0], reverse=True)
         return [
-            {"name": s.name, "description": s.description, "tags": s.tags}
+            {
+                "name": s.name,
+                "description": s.description,
+                "tags": s.tags,
+                "accepted_kwargs": s.accepted_kwargs,
+            }
             for _, s in scored[:k]
         ]
 
@@ -255,12 +272,15 @@ class SkillLibrary:
             if not isinstance(meta, dict) or not callable(run_fn):
                 logger.warning(f"Invalid skill format: {path}")
                 return None
+
+            accepted_kwargs = self._extract_accepted_kwargs(code, meta)
             
             return Skill(
                 name=str(meta.get("name") or path.stem),
                 description=str(meta.get("description") or ""),
                 tags=list(meta.get("tags") or []),
                 code=code,
+                accepted_kwargs=accepted_kwargs,
                 path=path,
                 preconditions=meta.get("preconditions"),
                 effects=meta.get("effects"),
@@ -277,3 +297,49 @@ class SkillLibrary:
                 self._vector_db.disconnect()
             except Exception:
                 pass
+
+    def _extract_accepted_kwargs(self, code: str, meta: Dict[str, Any]) -> List[str]:
+        """Extract accepted kwargs from metadata and code usage."""
+        accepted: set[str] = set()
+
+        # Optional explicit metadata contract.
+        meta_kwargs = meta.get("accepted_kwargs")
+        if isinstance(meta_kwargs, list):
+            accepted.update(str(k) for k in meta_kwargs if isinstance(k, str))
+
+        # Generic params dictionary support.
+        params = meta.get("params")
+        if isinstance(params, dict):
+            accepted.update(str(k) for k in params.keys())
+
+        # Infer kwargs from usage patterns in the code.
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return sorted(accepted)
+
+        for node in ast.walk(tree):
+            # kwargs.get("name", default)
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "kwargs"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                accepted.add(node.args[0].value)
+
+            # kwargs["name"]
+            if (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "kwargs"
+            ):
+                slice_node = node.slice
+                if isinstance(slice_node, ast.Constant) and isinstance(slice_node.value, str):
+                    accepted.add(slice_node.value)
+
+        return sorted(accepted)

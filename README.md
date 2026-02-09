@@ -41,12 +41,30 @@ cp .env.example .env
 ### 2. Run with Isaac Sim (Franka + RMPflow)
 
 ```bash
+cd robot_voyager
 # Full agent
 C:\isaacsim\python.bat -m apps.run_voyager --max-tasks 10
 
 # Only for testing  
 C:\isaacsim\python.bat -m apps.run_agent --backend isaac_rmpflow_franka
 
+```
+
+### 3. Evaluate What Happened After Runs
+
+Run evaluation without launching new Isaac sessions:
+
+```bash
+cd robot_voyager
+
+# Evaluate latest run only
+python -m apps.evaluate_runs --aggregate-only --num-runs 1
+
+# Evaluate many past runs (last 10)
+python -m apps.evaluate_runs --aggregate-only --num-runs 10
+
+# Optional: skip PNG plots and keep JSON/CSV only
+python -m apps.evaluate_runs --aggregate-only --num-runs 1 --no-plots
 ```
 
 ## Configuration

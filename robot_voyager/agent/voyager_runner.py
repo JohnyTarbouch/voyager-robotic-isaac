@@ -64,6 +64,7 @@ class VoyagerRunner:
         self.tasks_completed = 0
         self.tasks_failed = 0
         self.skills_learned = 0
+        self.skills_reused = 0  # skill reus
 
     def _on_llm_call(
         self,
@@ -203,6 +204,12 @@ class VoyagerRunner:
             k=16
         )
         
+        if retrieved:
+            best_skill = retrieved[0]
+            skill_score = best_skill.get("score", 0)
+            skill_name = best_skill.get("name", "")
+            self._print(f"  Best skill match: {skill_name} (score: {skill_score:.3f})", "dim")
+        
         last_error: Optional[str] = None
         last_reflection: Optional[ReflectionResult] = None
 
@@ -238,9 +245,11 @@ class VoyagerRunner:
             # Execute code
             self._print("Executing generated code.", "dim")
             exec_start = time.time()
+            self.robot.clear_log_buffer() 
             skill_context = create_skill_context(self.skills, self.robot)
             result = run_skill(plan.code, self.robot, {}, timeout_s, skill_context)
             exec_time_ms = (time.time() - exec_start) * 1000
+            execution_logs = self.robot.get_execution_logs()
             
             # Get post state
             post_state = dict(self.robot.get_observation())
@@ -267,7 +276,8 @@ class VoyagerRunner:
                 task_description=f"{task.description}\nSuccess criteria: {task.success_criteria}",
                 pre_state=pre_state,
                 post_state=post_state,
-                executed_code=plan.code
+                executed_code=plan.code,
+                execution_logs=execution_logs 
             )
             
             self._print(f" Critic verdict: {'SUCCESS' if critic_result['success'] else 'FAILED'}", 
@@ -282,6 +292,7 @@ class VoyagerRunner:
                 meta = extract_skill_metadata(plan.code)
                 meta_name = (meta.get("name") or "").strip()
                 skill_name = meta_name or task.name.lower().replace(" ", "_").replace("-", "_")
+
                 skill_path = self.skills.save_generated(skill_name, plan.code) 
                 if skill_path:
                     self.skills_learned += 1
@@ -303,7 +314,92 @@ class VoyagerRunner:
         total = self.tasks_completed + self.tasks_failed
         rate = self.tasks_completed / total * 100 if total > 0 else 0
         self._print(f"Progress: {self.tasks_completed}/{total} tasks ({rate:.0f}%)", "cyan")
-        self._print(f"Skills learned: {self.skills_learned}", "cyan")
+        self._print(f"Skills learned: {self.skills_learned} | Skills reused: {self.skills_reused}", "cyan")
+    
+    def _try_reuse_skill(
+        self, 
+        task: OpenTask, 
+        skill_info: dict, 
+        timeout_s: int
+    ) -> Optional[bool]:
+        import json
+        
+        skill_name = skill_info.get("name", "")
+        skill = self.skills.get(skill_name)
+        if not skill:
+            return None
+        
+        accepted_kwargs = skill_info.get("accepted_kwargs", [])
+        
+        kwargs = {}
+        if accepted_kwargs:
+            try:
+                extract_prompt = f"""Extract parameter values for the skill "{skill_name}" from this task.
+
+Task: {task.name}
+Description: {task.description}
+
+The skill accepts these kwargs: {accepted_kwargs}
+
+Respond with JSON only, mapping parameter names to values.
+If a parameter is not specified in the task, use null.
+Example: {{"cube_name": "cube1", "target_xy": [0.4, 0.1]}}
+"""
+                response = self.llm.chat(
+                    messages=[
+                        {"role": "system", "content": "Extract parameters from task descriptions."},
+                        {"role": "user", "content": extract_prompt},
+                    ],
+                    temperature=0.1,
+                    max_tokens=300,
+                    call_type="skill_kwargs_extraction",
+                )
+                
+                import re
+                json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+                if json_match:
+                    extracted = json.loads(json_match.group())
+                    # Filter out null values and only keep valid kwargs
+                    kwargs = {k: v for k, v in extracted.items() 
+                              if v is not None and k in accepted_kwargs}
+            except Exception as e:
+                logger.warning(f"Failed to extract kwargs: {e}")
+        
+        # Execute the skill
+        try:
+            obs = self.robot.get_observation()
+            pre_state = dict(obs)
+            self.metrics.start_attempt(0, pre_state)  # Attempt 0 = reuse attempt
+            
+            skill_context = create_skill_context(self.skills, self.robot)
+            result = run_skill(skill.code, self.robot, kwargs, timeout_s, skill_context)
+            
+            post_state = dict(self.robot.get_observation())
+            
+            if not result.ok:
+                self.metrics.end_attempt(post_state, False)
+                return None  
+            
+            # critic verifi
+            critic_result = self.critic.verify(
+                task_description=f"{task.description}\nSuccess criteria: {task.success_criteria}",
+                pre_state=pre_state,
+                post_state=post_state,
+                executed_code=f"# Reused skill: {skill_name}\n{skill.code}"
+            )
+            
+            self.metrics.end_attempt(post_state, critic_result['success'])
+            
+            if critic_result['success']:
+                self._print(f"  Critic verified: {critic_result['reasoning'][:80]}...", "dim")
+                return True
+            else:
+                self._print(f"  Critic rejected: {critic_result['reasoning'][:80]}...", "dim")
+                return None 
+                
+        except Exception as e:
+            logger.warning(f"Skill reuse failed: {e}")
+            return None
     
     def _print_final_summary(self):
         stats = self.curriculum.get_stats()
@@ -316,6 +412,7 @@ class VoyagerRunner:
         self._print(f"  Tasks failed:    {stats['tasks_failed']}", "red")
         self._print(f"  Success rate:    {stats['success_rate']:.1%}", "cyan")
         self._print(f"  Skills learned:  {stats['skills_learned']}", "yellow")
+        self._print(f"  Skills reused:   {self.skills_reused}", "yellow")
         self._print("="*60, "bold blue")
 
 

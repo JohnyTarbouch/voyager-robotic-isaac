@@ -1,6 +1,5 @@
-import ast
 import logging
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
 
 from agent.skill_library import SkillLibrary
 
@@ -26,6 +25,7 @@ class SkillExecutor:
         self.skill_library = skill_library
         self.robot = robot
         self._skill_cache: Dict[str, Callable] = {}
+        self._skills_proxy = None
     
     def get_available_skills(self) -> Dict[str, Callable]:
         """
@@ -41,13 +41,18 @@ class SkillExecutor:
             skill = self.skill_library.get(skill_name)
             
             if skill and skill.code:
-                skill_fn = self._create_skill_function(skill_name, skill.code)
+                skill_fn = self._create_skill_function(skill_name, skill.code, skill.accepted_kwargs)
                 if skill_fn:
                     skills[skill_name] = skill_fn
         
         return skills
     
-    def _create_skill_function(self, name: str, code: str) -> Optional[Callable]:
+    def _create_skill_function(
+        self,
+        name: str,
+        code: str,
+        accepted_kwargs: Optional[List[str]] = None,
+    ) -> Optional[Callable]:
         """Create a callable func from skill code"""
         try:
             # Compile the skill code
@@ -55,6 +60,8 @@ class SkillExecutor:
             
             # Create namespace with safe builtins
             namespace = self._get_safe_namespace()
+            if self._skills_proxy is not None:
+                namespace["skills"] = self._skills_proxy
             
             # Execute to define the run func
             exec(compiled, namespace)
@@ -64,9 +71,20 @@ class SkillExecutor:
                 return None
             
             run_fn = namespace["run"]
+            accepted_kwargs_set = set(accepted_kwargs or [])
             
             # Create wrapper to binds robot
             def skill_wrapper(**kwargs) -> bool:
+                if accepted_kwargs_set:
+                    unknown = sorted(set(kwargs.keys()) - accepted_kwargs_set)
+                    if unknown:
+                        logger.error(
+                            "Skill '%s' received unsupported kwargs %s. Accepted kwargs: %s",
+                            name,
+                            unknown,
+                            sorted(accepted_kwargs_set),
+                        )
+                        return False
                 return run_fn(self.robot, **kwargs)
             
             # Add metadata
@@ -78,6 +96,10 @@ class SkillExecutor:
         except Exception as e:
             logger.warning(f"Failed to create function for skill '{name}': {e}")
             return None
+
+    def set_skills_proxy(self, skills_proxy: Any) -> None:
+        """Inject shared skills proxy for nested skill composition."""
+        self._skills_proxy = skills_proxy
     
     def _get_safe_namespace(self) -> Dict[str, Any]:
         """Get a safe namespace for skill execution."""
@@ -124,7 +146,7 @@ class SkillExecutor:
             logger.error(f"Skill not found: {skill_name}")
             return False
         
-        skill_fn = self._create_skill_function(skill_name, skill.code)
+        skill_fn = self._create_skill_function(skill_name, skill.code, skill.accepted_kwargs)
         if not skill_fn:
             return False
         
@@ -151,7 +173,6 @@ def create_skill_context(skill_library: SkillLibrary, robot: Any) -> Dict[str, A
         Dict with skill functions and safe builtins
     """
     executor = SkillExecutor(skill_library, robot)
-    skills = executor.get_available_skills()
     
     # Create base context
     context = executor._get_safe_namespace()
@@ -178,6 +199,12 @@ def create_skill_context(skill_library: SkillLibrary, robot: Any) -> Dict[str, A
         def has(self, name: str) -> bool:
             return name in self._skills
     
-    context["skills"] = SkillsProxy(skills, executor)
+    # Build proxy first so nested skills.call(...) works inside composed skills.
+    skills: Dict[str, Callable] = {}
+    skills_proxy = SkillsProxy(skills, executor)
+    executor.set_skills_proxy(skills_proxy)
+    skills.update(executor.get_available_skills())
+
+    context["skills"] = skills_proxy
     
     return context

@@ -65,6 +65,23 @@ GUIDELINES FOR WRITING SKILLS:
    - If the task mentions a specific cube/target, set DEFAULTS from the task so the skill still succeeds now.
    - Skill names must be generic (e.g., "pick_cube", "pick_and_place_cube"), NO numeric suffixes.
 
+CUBE-AWARE PLACEMENT (MANDATORY FOR ALL PLACEMENTS):
+- If the task says "next to", "beside", "adjacent", "left/right of", compute target from live positions using robot.get_object_position() for the referenced cube.
+- Never place a cube on top of another cube unless the task explicitly says stack/tower/pyramid.
+- For ANY placement (even absolute target_xy), choose a NEW FREE SPACE:
+  - The target XY must be at least 0.07m away from every other cube (excluding the cube being moved).
+  - Prefer a spot that is clearly separated (>= 0.10m) from all cubes if feasible.
+  - Do NOT reuse the exact XY of any existing cube.
+- If the desired target is too close to another cube, SEARCH for a FREE PLACE:
+  - Try a small set of candidate offsets around the desired target (e.g., +/-0.06, +/-0.08, +/-0.10 in X/Y).
+  - If still blocked, scan a coarse grid within reachable area (x: 0.3-0.7, y: -0.4-0.4) and pick the first free spot.
+- If no free spot exists, return False.
+- For placement verification, check both XY distance to target and Z near table height (z <= 0.04) unless stacking is intended.
+  - Use an XY tolerance of 0.08m for success checks unless the task explicitly requires larger.
+- For stacking tasks, the BASE location must also be in a NEW FREE SPACE (use the same clearance rules) unless the task explicitly specifies a target.
+
+
+
 CRITICAL FOR MOTION:
 - ALWAYS use pos_tolerance >= 0.06 due to robot position offset
 - Example: robot.move_ee(target, pos_tolerance=0.06, timeout_s=15.0)
@@ -90,6 +107,48 @@ SKILL COMPOSITION RULES:
 3. Call skills via: skills.call("skill_name", param=value)
 4. Only use raw robot.* calls for operations not covered by existing skills
 5. For multi-step tasks (pick AND place), prefer calling existing skills
+
+=== SKILL REUSE RULES ===
+**IMPORTANT: Only use skills that appear in the 'Available skills' list above!**
+
+1. FIRST, check the 'Available skills' list in this prompt to see what skills actually exist.
+   - Do NOT assume skills exist - only call skills you see in the list!
+   - If "pick_and_place_cube" is in the list -> use it and call it
+   - If it's NOT in the list → you must write the code yourself
+
+2. If a matching skill IS in the available list, use it:
+   ```python
+   def run(robot, **kwargs) -> bool:
+       if skills.has("pick_and_place_cube"):  # Always check first!
+           return skills.call("pick_and_place_cube", cube_name="cube1", target_xy=(0.6, 0.15))
+       # Fallback: write the code if skill doesn't exist
+   ```
+
+3. If NO matching skill exists in the available list:
+   - Write the full implementation using robot.* methods
+   - This is expected when starting fresh!
+
+4. NEVER call a skill that is not in the 'Available skills' list.
+
+Example - When skill EXISTS in available list:
+```python
+# Available skills shows: pick_and_place_cube
+def run(robot, **kwargs) -> bool:
+    return skills.call("pick_and_place_cube", cube_name="cube1", target_xy=(0.6, 0.15))
+```
+
+Example - When skill does NOT exist (write full code):
+```python
+# Available skills: open_gripper_skill, move_to_position, approach_object, close_gripper_skill
+# (no pick_and_place_cube!) → must implement it
+def run(robot, **kwargs) -> bool:
+    cube_name = kwargs.get("cube_name", "cube1")
+    target_xy = kwargs.get("target_xy", (0.6, 0.15))
+    
+    # Get cube position
+    cube = robot.get_object_position(cube_name)
+    # ... full pick and place implementation ...
+```
 
 Example - GOOD (uses existing pick skill):
 ```python
@@ -294,6 +353,37 @@ def run(robot, **kwargs) -> bool:
     # Verify pyramid
     cube3_final = robot.get_object_position("cube3")
     return cube3_final[2] > 0.06  # Must be stacked (>6cm high)
+```
+
+CRITICAL FOR MULTI-OBJECT TASKS (towers, lines, pyramids, patterns):
+**Verify ALL objects at the END, not just after each step!**
+
+Physics can knock previously placed cubes when placing new ones. Per-step verification
+passes but the final structure is wrong. Always add a FINAL verification loop:
+
+```python
+def run(robot, **kwargs) -> bool:
+    cube_names = ["cube1", "cube2", "cube3"]
+    targets = [(0.5, 0.0, 0.02), (0.5, 0.0, 0.07), (0.5, 0.0, 0.12)]
+    
+    # Place each cube (with per-step checks for early failure)
+    for cube_name, target in zip(cube_names, targets):
+        # ... pick and place logic ...
+        # Per-step check is OK for early failure detection
+    
+    robot.log("=== FINAL STRUCTURE VERIFICATION ===")
+    all_ok = True
+    for cube_name, target in zip(cube_names, targets):
+        final_pos = robot.get_object_position(cube_name)
+        dist = ((final_pos[0] - target[0])**2 + 
+                (final_pos[1] - target[1])**2 + 
+                (final_pos[2] - target[2])**2)**0.5
+        robot.log(f"FINAL CHECK: {{cube_name}} at {{final_pos}}, target {{target}}, dist={{dist:.3f}}m")
+        if dist > 0.06:
+            robot.log(f"FAILED: {{cube_name}} not at target!")
+            all_ok = False
+    
+    return all_ok
 ```
 """
 
