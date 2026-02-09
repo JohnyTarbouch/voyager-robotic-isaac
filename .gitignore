@@ -223,6 +223,10 @@ robot_voyager/skills/vector_db/*
 
 robot_voyager/apps/*
 !robot_voyager/apps/run_voyager.py
+!robot_voyager/apps/evaluate_runs.py
 robot_voyager/agent/curriculum.py
 robot_voyager/agent/runner.py
 robot_voyager/agent/verifier.py
+
+robot_voyager/evaluations/
+robot_voyager/skills/generated/
