@@ -63,8 +63,6 @@ python -m apps.evaluate_runs --aggregate-only --num-runs 1
 # Evaluate many past runs (last 10)
 python -m apps.evaluate_runs --aggregate-only --num-runs 10
 
-# Optional: skip PNG plots and keep JSON/CSV only
-python -m apps.evaluate_runs --aggregate-only --num-runs 1 --no-plots
 ```
 
 ## Configuration
@@ -72,10 +70,11 @@ python -m apps.evaluate_runs --aggregate-only --num-runs 1 --no-plots
 ### Environment Variables (.env)
 
 ```bash
+# First: Edit .env with your LLM endpoint and API key
 # LLM endpoint (OpenAI-compatible)
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=your-key
-LLM_MODEL=gpt
+LLM_MODEL=llama
 
 # Agent settings
 AGENT_MAX_ATTEMPTS=3
@@ -89,7 +88,7 @@ python -m apps.run_voyager --help
 
 Options:
   --headless # Isaac Sim headless mode
-  --max-attempts N # Max attempts
+  --max-attempts # Max attempts
 ```
 
 
@@ -111,29 +110,23 @@ Skills are Python modules with this structure:
 
 ```python
 SKILL_METADATA = {
-    "name": "pick_cube",
-    "description": "Pick up a cube from the table",
-    "tags": ["manipulation", "pick", "cube", "gripper"],
+    "name": "pick_cube", # Skill name (func name)
+    "description": "Pick up a cube from the table", # Describe to retrieve and save into Vector DB
 }
 
 def run(robot, **kwargs) -> bool:
     """Execute the skill. Return True on success."""
     robot.log("Starting pick_cube")
     
-    # Get cube position
     cube_pos = robot.get_object_position("cube")
     
-    # Approach from above
     robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.15))
     robot.open_gripper()
     
-    # Descend to cube
     robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.02))
     
-    # Grasp
     robot.close_gripper()
     
-    # Lift
     robot.move_ee((cube_pos[0], cube_pos[1], cube_pos[2] + 0.20))
     
     robot.log("pick_cube complete")
