@@ -102,6 +102,10 @@ CRITICAL FOR LIFTING:
 - Use TIGHTER tolerance (0.03) for lift to ensure robot keeps moving upward!
 - Lift to z=0.20 even if you only need z=0.12 - this ensures full lift motion
 - Don't return False on lift timeout - check actual cube position instead!
+- If lift move times out/returns False, RETRY once with a slightly higher target (e.g., z=0.22) before giving up
+- Always compare object Z before vs after lift attempts; require clear upward motion (typically >= 0.04m for cubes)
+- Only fail the pick phase if object Z did not increase enough after lift attempt(s)
+- Log lift return value, retry action, and measured Z increase for debugging
 
 SKILL COMPOSITION RULES:
 1. Check what skills are available: skills.list()
@@ -109,6 +113,12 @@ SKILL COMPOSITION RULES:
 3. Call skills via: skills.call("skill_name", param=value)
 4. Only use raw robot.* calls for operations not covered by existing skills
 5. For multi-step tasks (pick AND place), prefer calling existing skills
+
+DUPLICATE FUNCTION PREVENTION (MANDATORY):
+- If an existing skill already performs the requested behavior, DO NOT re-implement it.
+- Do NOT create a new skill with different name but same functionality.
+- In that case, write only a thin wrapper that delegates to the existing skill via skills.call(...).
+- Never duplicate existing behavior just to satisfy formatting or naming preferences.
 
 === SKILL REUSE RULES ===
 **IMPORTANT: Only use skills that appear in the 'Available skills' list above!**
@@ -196,13 +206,19 @@ def run(robot, **kwargs) -> bool:
     robot.wait(30)
     
     # Lift HIGH with TIGHT tolerance (keeps robot moving)
+    pre_lift_z = cube[2]
     lift = (cube[0], cube[1], 0.20)
-    robot.move_ee(lift, pos_tolerance=0.03, timeout_s=15.0)  # Don't check return!
+    lift_ok = robot.move_ee(lift, pos_tolerance=0.03, timeout_s=15.0)
+    if not lift_ok:
+        robot.log("Lift timeout, retrying lift to z=0.22")
+        robot.move_ee((cube[0], cube[1], 0.22), pos_tolerance=0.03, timeout_s=10.0)
     
     # Check actual cube position (this is the real success check)
     new_pos = robot.get_object_position("cube")
     robot.log(f"Cube now at {{new_pos}}")
-    return new_pos[2] > 0.10
+    dz = new_pos[2] - pre_lift_z
+    robot.log(f"Lift delta z: {{dz:.3f}}m")
+    return dz >= 0.04
 ```
 
 FOR PLACE TASKS (after picking):
@@ -333,6 +349,9 @@ Key considerations:
 - Calculate middle position from ACTUAL base object positions (re-read positions!)
 - For structure verification, use **0.10m tolerance** for checking if objects are near each other
   (robot has ~0.05m drift, so 0.06m tolerance is too strict for multi-object checks!)
+- For pyramid/tower success, top cube must remain elevated after release:
+  top_z should be at least ~0.03m above both base cubes in final state.
+- Never declare pyramid/tower success if all cubes end near table height (z <= 0.04).
 
 FOR BOX TASKS:
 To place a cube inside the open-top box:
@@ -376,6 +395,7 @@ CRITICAL FOR MULTI-OBJECT TASKS (towers, lines, pyramids, patterns):
 
 Physics can knock previously placed objects when placing new ones. Per-step verification
 passes but the final structure is wrong. Always add a FINAL verification loop:
+- Do NOT rely only on skills.call(...) return values for final success.
 
 ```python
 def run(robot, **kwargs) -> bool:

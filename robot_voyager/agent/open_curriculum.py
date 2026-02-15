@@ -59,11 +59,11 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
 - Example BAD criteria: "cube within 0.01m of target" (impossible!)
 4. **MANDATORY TASK PROGRESSION** — propose the FIRST uncompleted step below!
    Check the 'completed tasks' list and find which step has NOT been done yet. Propose THAT step.
-   Do NOT skip ahead!
+   Do NOT skip ahead! Do not write try to write the same task with a different name.
    a) pick-and-place one cube to a new position
    b) pick a cube and place it inside the open-top box (use robot.get_box_position())
    c) stack 2 cubes into a tower
-   d) line patterns, 3-cube pyramid, stack 3-4 cubes, L-shapes, sorting
+   d) line patterns, 3-cube pyramid (2 cube as base and one cube on top), stack 3-4 cubes, L-shapes, sorting
    e) move all cubes to one side
 5. Challenge yourself but stay within robot capabilities:
    - Robot can reach: x: 0.3-0.7, y: -0.4-0.4, z: 0.0-0.6

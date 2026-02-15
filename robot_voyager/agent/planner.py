@@ -85,6 +85,8 @@ class Planner:
         """
         # Format available skills
         skills_brief = self._format_skills(available_skills)
+        available_skill_names = [s.get("name", "") for s in available_skills if s.get("name")]
+        skill_names_str = ", ".join(available_skill_names) if available_skill_names else "(none)"
         
         # Build user prompt
         user_prompt = f"""Task:
@@ -96,6 +98,9 @@ Current Observation (robot state):
 
 Available skills you may reference (for patterns/ideas):
 {skills_brief}
+
+Existing learned skill names (DO NOT re-implement these behaviors):
+{skill_names_str}
 
 Attempt: {attempt}
 """
@@ -128,11 +133,17 @@ Requirements:
 - For LIFT: use pos_tolerance=0.03 and lift to z=0.20 (higher than needed!)
 - Gripper is physics-based - close_gripper() stops when touching object!
 - Check cube position after lift to verify success, not move_ee return value.
+- If lift times out/returns False, retry lift once (e.g., z=0.22), then verify object Z change.
+- Consider pick failure only if object did not lift (e.g., Z increase < 0.04m), not only from lift return value.
 - Include robot.log() calls for debugging.
 - Make the skill reusable: use kwargs like cube_name / object_name and target_xy / target_xyz.
 - If the task names a specific cube/target, set those as DEFAULTS in kwargs.
 - When calling an existing skill, pass only kwargs listed in that skill's accepted_kwargs.
 - Skill name should be generic (no cube indices like cube1/cube2 in the name).
+- For tower/pyramid tasks, compute top target from ACTUAL base cube positions after base placement.
+- For tower/pyramid tasks, add explicit final elevation verification:
+  top cube final z must be >= max(base z values) + 0.03 (or stricter if task says so).
+- For multi-object tasks, do not treat sub-skill return values as sufficient proof; verify final object layout.
 - Output MUST be exactly one python code block.
 
 **CRITICAL - ALWAYS REUSE EXISTING SKILLS:**
@@ -140,6 +151,9 @@ Requirements:
 - If "pick_and_place_cube" is NOT in the list -> write the FULL implementation yourself
 - NEVER call skills.call("skill_name") if that skill is not in the available skills list!
 - If the task can be accomplished by calling ONE existing skill, just call that skill and return its result!
+- DO NOT write a new implementation of an already-learned function with a new name.
+- If an existing skill already matches the requested behavior, output only a thin delegator that calls that skill.
+- NEVER create duplicate functionality under a different skill name.
 
 Example - Task "Move cube1 to (0.6, 0.0)" with pick_and_place_cube available:
 ```python

@@ -4,7 +4,7 @@ based on the state before and after execution.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +23,21 @@ IMPORTANT GUIDELINES:
 - **Judge by PHYSICAL OUTCOME, not by code return value!**
   The code may return False due to overly strict self-verification, but the task could still
   be physically successful. Always compare BEFORE vs AFTER object positions yourself.
+- The task's explicit success criteria are binding. If criteria are not met, return FAILED.
 - Position errors up to 0.05m per object are normal due to robot precision limits.
 - For multi-object structures (pyramids, towers), allow up to 0.10m tolerance between objects
   because each object can drift ~0.05m independently.
-- A pyramid is successful if: base cubes are roughly side by side AND a top cube is elevated above them.
-- A tower is successful if: cubes are stacked with increasing Z values at roughly the same XY.
-- If the goal was achieved even partially, consider it a success.
+- A pyramid is successful only if:
+  1) base cubes are roughly side by side, and
+  2) a top cube is clearly elevated above the base cubes.
+  Practical elevation rule: top cube z should be at least ~0.03m above both base cubes.
+  If all involved cubes remain near table height (z <= 0.04), pyramid/tower is FAILED.
+- A tower is successful only if cubes have increasing z values at roughly the same XY.
+- Do NOT mark success for partial progress if the final structure was not achieved.
 - Look for actual changes in the environment that match the task goal.
-- Do NOT blindly trust log messages like "Base cubes are not close enough" — verify yourself
-  by looking at the actual STATE AFTER positions!
+- Do NOT blindly trust log messages like "Base cubes are not close enough"; verify using STATE AFTER.
+- When uncertain, prefer FAILED over a false SUCCESS.
+- In reasoning, cite concrete numeric evidence from STATE AFTER (z values and/or distances).
 
 Output your response in this EXACT JSON format:
 {
@@ -89,7 +95,7 @@ EXECUTION LOGS (from robot.log() calls):
 
 NOTE: These logs are from the code's own checks, which may use overly strict tolerances.
 Do NOT blindly trust failure messages in the logs. Instead, verify by looking at the actual
-STATE AFTER positions above — if the physical outcome matches the task goal, it's a SUCCESS
+STATE AFTER positions above - if the physical outcome matches the task goal, it's a SUCCESS
 even if the code's own verification said it failed.
 """                         
         
@@ -113,7 +119,7 @@ Respond with JSON only: {{"success": true/false, "reasoning": "", "confidence": 
                     {"role": "system", "content": CRITIC_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.1,  # Lower? TODO: change and test
+                temperature=0.0,
                 max_tokens=500,
                 call_type="critic_verification",
             )
