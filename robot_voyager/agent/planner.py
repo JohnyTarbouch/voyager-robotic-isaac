@@ -144,6 +144,8 @@ Requirements:
 - For tower/pyramid tasks, add explicit final elevation verification:
   top cube final z must be >= max(base z values) + 0.03 (or stricter if task says so).
 - For multi-object tasks, do not treat sub-skill return values as sufficient proof; verify final object layout.
+- If "create_pyramid_base" exists and the task is a full pyramid, CALL it first for base placement,
+  then place only the top cube and run final structure verification.
 - Output MUST be exactly one python code block.
 
 **CRITICAL - ALWAYS REUSE EXISTING SKILLS:**

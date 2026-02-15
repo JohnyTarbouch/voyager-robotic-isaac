@@ -347,6 +347,8 @@ Key considerations:
 - For stacking, place top object at base_z + 0.05m
 - Reuse pick-and-place pattern for each object
 - Calculate middle position from ACTUAL base object positions (re-read positions!)
+- If "create_pyramid_base" exists in available skills, use it to place the base first,
+  then place only the top cube and verify full pyramid at the end.
 - For structure verification, use **0.10m tolerance** for checking if objects are near each other
   (robot has ~0.05m drift, so 0.06m tolerance is too strict for multi-object checks!)
 - For pyramid/tower success, top cube must remain elevated after release:

@@ -36,7 +36,7 @@ OPEN_CURRICULUM_PROMPT = """You are an autonomous robot learning agent. Your goa
 You control a Franka robot arm with a gripper. You have access to these objects:
 {objects}
 
-Your current skill library:
+Your current skill library, do not write the same skill multiple times, write new skills as you learn them:
 {skills}
 
 Tasks you have already completed:
@@ -57,13 +57,17 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
   because EACH cube drifts ~0.05m, so two cubes can drift 0.10m relative to each other!
 - Example good criteria: "cube within 0.08m of target position"
 - Example BAD criteria: "cube within 0.01m of target" (impossible!)
-4. **MANDATORY TASK PROGRESSION** — propose the FIRST uncompleted step below!
+4. **MANDATORY TASK PROGRESSION** - propose the FIRST uncompleted step below!
    Check the 'completed tasks' list and find which step has NOT been done yet. Propose THAT step.
-   Do NOT skip ahead! Do not write try to write the same task with a different name.
+   Do NOT skip ahead! Do not write the same task with a different name.
    a) pick-and-place one cube to a new position
    b) pick a cube and place it inside the open-top box (use robot.get_box_position())
    c) stack 2 cubes into a tower
-   d) line patterns, 3-cube pyramid (2 cube as base and one cube on top), stack 3-4 cubes, L-shapes, sorting
+   d1) line patterns
+   d2) full 3-cube pyramid (2 cubes as base + 1 cube on top and elevated)
+       IMPORTANT: this is NOT a "pyramid base" task.
+       If d2 is pending, do not propose base-only pyramid tasks.
+   d3) stack 3-4 cubes, L-shapes, sorting
    e) move all cubes to one side
 5. Challenge yourself but stay within robot capabilities:
    - Robot can reach: x: 0.3-0.7, y: -0.4-0.4, z: 0.0-0.6
@@ -189,7 +193,6 @@ class OpenEndedCurriculum:
                 if self._is_duplicate_task(task.name):
                     self._dedup_retries += 1
                     logger.warning(f"Duplicate task detected: '{task.name}' (retry {self._dedup_retries}/3)")
-                    self._completed_tasks.append(task.name)
                     if self._dedup_retries >= 3:
                         logger.warning("Max dedup retries reached, accepting task anyway")
                     else:
@@ -205,33 +208,73 @@ class OpenEndedCurriculum:
             logger.error(f"Task proposal failed: {e}")
             return None
     
+    @staticmethod
+    def _normalize_task_name(name: str) -> str:
+        return name.lower().replace("-", "_").replace(" ", "_")
+
+    @staticmethod
+    def _pyramid_stage(task_norm: str) -> Optional[str]:
+        """
+        Distinguish pyramid sub-stages so we can progress from base -> full pyramid.
+        """
+        if "pyramid" not in task_norm:
+            return None
+
+        has_base = "base" in task_norm
+        has_top_or_full = any(
+            token in task_norm for token in ("top", "peak", "full", "three", "3", "complete")
+        )
+
+        if has_base and not has_top_or_full:
+            return "pyramid_base"
+        return "pyramid_full"
+
     def _is_duplicate_task(self, proposed_name: str) -> bool:
-        """Check if proposed task is similar to completed task"""
-        proposed = proposed_name.lower().replace("-", "_").replace(" ", "_")
-        
+        """Check if proposed task is similar to completed task."""
+        proposed = self._normalize_task_name(proposed_name)
+        proposed_pyramid_stage = self._pyramid_stage(proposed)
+
         task_keywords = {
             "box": ["box", "container"],
             "stack": ["stack", "tower"],
-            "pyramid": ["pyramid"],
             "line": ["line", "row"],
             "pick_place": ["pick_and_place", "pick_place"],
             "sort": ["sort", "organize"],
             "clear": ["clear", "move_all"],
         }
-        
+
         for completed in self._completed_tasks:
-            completed_norm = completed.lower().replace("-", "_").replace(" ", "_")
-            
+            completed_norm = self._normalize_task_name(completed)
+            completed_pyramid_stage = self._pyramid_stage(completed_norm)
+
             if proposed == completed_norm:
                 return True
-            
+
+            # Pyramid-aware dedup:
+            # - same stage => duplicate
+            # - full -> base => duplicate (do not regress)
+            # - base -> full => allow (intended progression)
+            if proposed_pyramid_stage and completed_pyramid_stage:
+                if proposed_pyramid_stage == completed_pyramid_stage:
+                    logger.info(
+                        f"Duplicate detected: '{proposed}' matches '{completed_norm}' via 'pyramid_stage'"
+                    )
+                    return True
+                if proposed_pyramid_stage == "pyramid_base" and completed_pyramid_stage == "pyramid_full":
+                    logger.info(
+                        f"Duplicate detected: base pyramid '{proposed}' blocked because full pyramid already completed"
+                    )
+                    return True
+                if proposed_pyramid_stage == "pyramid_full" and completed_pyramid_stage == "pyramid_base":
+                    continue
+
             for category, keywords in task_keywords.items():
                 proposed_has = any(kw in proposed for kw in keywords)
                 completed_has = any(kw in completed_norm for kw in keywords)
                 if proposed_has and completed_has:
                     logger.info(f"Duplicate detected: '{proposed}' matches '{completed_norm}' via '{category}'")
                     return True
-        
+
         return False
     
     def _fix_success_criteria(self, task: OpenTask) -> OpenTask:
