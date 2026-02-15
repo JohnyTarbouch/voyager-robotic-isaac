@@ -254,6 +254,9 @@ class VoyagerRunner:
             # Get post state
             post_state = dict(self.robot.get_observation())
             
+            # Reset robot arm onlz
+            self.robot.reset_arm()
+            
             if not result.ok:
                 error_msg = result.error or "Unknown execution error"
                 self._print(f"Execution error: {error_msg[:100]}", "yellow")
@@ -291,12 +294,18 @@ class VoyagerRunner:
                 # Save the generated critic skill
                 meta = extract_skill_metadata(plan.code)
                 meta_name = (meta.get("name") or "").strip()
-                skill_name = meta_name or task.name.lower().replace(" ", "_").replace("-", "_")
+                skill_name = meta_name or task.name
+                import re as _re
+                skill_name = _re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', skill_name)
+                skill_name = skill_name.lower().replace(" ", "_").replace("-", "_")
 
-                skill_path = self.skills.save_generated(skill_name, plan.code) 
-                if skill_path:
-                    self.skills_learned += 1
-                    self._print(f"Skill saved: {skill_name}", "green")
+                if self.skills.get(skill_name):
+                    self._print(f"Skill '{skill_name}' already exists, skipping save", "dim")
+                else:
+                    skill_path = self.skills.save_generated(skill_name, plan.code) 
+                    if skill_path:
+                        self.skills_learned += 1
+                        self._print(f"Skill saved: {skill_name}", "green")
                 
                 return True
             else:

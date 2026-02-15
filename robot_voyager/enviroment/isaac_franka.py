@@ -11,6 +11,16 @@ def dist(a: Tuple[float, ...], b: Tuple[float, ...]) -> float:
     return float(np.sqrt(sum((x - y) ** 2 for x, y in zip(a, b))))
 
 
+# old name -> new name
+_LEGACY_ALIASES: Dict[str, str] = {
+    "cube": "cube_red",
+    "cube1": "cube_red",
+    "cube2": "cube_green",
+    "cube3": "cube_blue",
+    "cube4": "cube_yellow",
+}
+
+
 class IsaacFrankaRobotAPI:
     """
     Robot API for Franka in IsaacSim using NVIDIA classes.
@@ -23,24 +33,48 @@ class IsaacFrankaRobotAPI:
         self._headless = headless
         self._world = None
         self._franka = None
-        self._cube = None
         self._target_marker = None
         self._pick_place_controller = None
         self._rmpflow = None
         self._articulation_rmpflow = None
         self._log_buffer = []  
-        
+
+        # Object registry
+        self._objects: Dict[str, Any] = {}     
+        self._object_metadata: Dict[str, dict] = {}  # name -> {shape, color_name, size, initial_pos}
+
+        # Box pos
+        self._box_center = (0.7, -0.30, 0.03)
+
         self._setup_simulation()
+
+    def _register_object(
+        self, name: str, prim: Any,
+        shape: str, color_name: str, size: str, initial_pos: Tuple[float, float, float],
+    ) -> None:
+        self._objects[name] = prim
+        self._object_metadata[name] = {
+            "shape": shape,
+            "color_name": color_name,
+            "size": size,
+            "initial_pos": initial_pos,
+        }
+
+    def _resolve_name(self, name: str) -> str:
+        """Resolve legacy aliases to current names."""
+        return _LEGACY_ALIASES.get(name, name)
 
     def _setup_simulation(self):
         from isaacsim import SimulationApp
         
         # Launch simulation 
-        # Now import Isaac modules (TODO: SimulationApp)
         self._sim_app = SimulationApp({"headless": self._headless})
         
         from isaacsim.core.api import World
-        from isaacsim.core.api.objects import DynamicCuboid, VisualCuboid
+        from isaacsim.core.api.objects import (
+            DynamicCuboid,
+            VisualCuboid,
+        )
         from isaacsim.robot.manipulators.examples.franka import Franka
         from isaacsim.robot.manipulators.examples.franka.controllers import PickPlaceController
         
@@ -58,45 +92,55 @@ class IsaacFrankaRobotAPI:
         
         # Add cubes 
         # Red
-        self._cube1 = self._world.scene.add(
+        prim = self._world.scene.add(
             DynamicCuboid(
-                prim_path="/World/Cube1",
-                name="cube1",
+                prim_path="/World/CubeRed",
+                name="cube_red",
                 position=np.array([0.5, 0.15, 0.025]),
                 scale=np.array([0.05, 0.05, 0.05]),
-                color=np.array([1.0, 0.0, 0.0]),  
+                color=np.array([1.0, 0.0, 0.0]),
             )
         )
+        self._register_object("cube_red", prim, "cube", "red", "0.05m side", (0.5, 0.15, 0.025))
+
         # Green
-        self._cube2 = self._world.scene.add(
+        prim = self._world.scene.add(
             DynamicCuboid(
-                prim_path="/World/Cube2",
-                name="cube2",
+                prim_path="/World/CubeGreen",
+                name="cube_green",
                 position=np.array([0.5, 0.0, 0.025]),
                 scale=np.array([0.05, 0.05, 0.05]),
-                color=np.array([0.0, 1.0, 0.0]),  
+                color=np.array([0.0, 1.0, 0.0]),
             )
         )
+        self._register_object("cube_green", prim, "cube", "green", "0.05m side", (0.5, 0.0, 0.025))
+
         # Blue
-        self._cube3 = self._world.scene.add(
+        prim = self._world.scene.add(
             DynamicCuboid(
-                prim_path="/World/Cube3",
-                name="cube3",
+                prim_path="/World/CubeBlue",
+                name="cube_blue",
                 position=np.array([0.5, -0.15, 0.025]),
                 scale=np.array([0.05, 0.05, 0.05]),
                 color=np.array([0.0, 0.0, 1.0]),
             )
         )
+        self._register_object("cube_blue", prim, "cube", "blue", "0.05m side", (0.5, -0.15, 0.025))
+
         # Yellow
-        self._cube4 = self._world.scene.add(
+        prim = self._world.scene.add(
             DynamicCuboid(
-                prim_path="/World/Cube4",
-                name="cube4",
+                prim_path="/World/CubeYellow",
+                name="cube_yellow",
                 position=np.array([0.5, -0.30, 0.025]),
                 scale=np.array([0.05, 0.05, 0.05]),
-                color=np.array([1.0, 1.0, 0.0]),  
+                color=np.array([1.0, 1.0, 0.0]),
             )
         )
+        self._register_object("cube_yellow", prim, "cube", "yellow", "0.05m side", (0.5, -0.30, 0.025))
+
+        #  Add box 
+        self._setup_box(VisualCuboid)
         
         # Add target marker 
         self._target_marker = self._world.scene.add(
@@ -129,7 +173,59 @@ class IsaacFrankaRobotAPI:
         for _ in range(10):
             self._world.step(render=not self._headless)
         
-        logger.info("IsaacFrankaRobotAPI initialized with NVIDIA Franka")
+        logger.info("IsaacFrankaRobotAPI initialized with 4 cubes and box")
+
+    def _setup_box(self, VisualCuboid):
+        bx, by, bz = 0.7, -0.30, 0.0
+        wall_t = 0.005 # wall thick
+        w = 0.12 # width (Y)
+        d = 0.10 # depth (X)
+        h = 0.08 # height (Z)
+        box_color = np.array([0.4, 0.26, 0.13]) # brown
+
+        # Floor
+        self._world.scene.add(VisualCuboid(
+            prim_path="/World/Box/Floor",
+            name="box_floor",
+            position=np.array([bx, by, bz + wall_t / 2]),
+            scale=np.array([d + 2 * wall_t, w + 2 * wall_t, wall_t]),
+            color=box_color,
+        ))
+        # Back wall
+        self._world.scene.add(VisualCuboid(
+            prim_path="/World/Box/BackWall",
+            name="box_back",
+            position=np.array([bx + d / 2 + wall_t / 2, by, bz + h / 2]),
+            scale=np.array([wall_t, w + 2 * wall_t, h]),
+            color=box_color,
+        ))
+        # Front wall
+        self._world.scene.add(VisualCuboid(
+            prim_path="/World/Box/FrontWall",
+            name="box_front",
+            position=np.array([bx - d / 2 - wall_t / 2, by, bz + h / 2]),
+            scale=np.array([wall_t, w + 2 * wall_t, h]),
+            color=box_color,
+        ))
+        # Left wall
+        self._world.scene.add(VisualCuboid(
+            prim_path="/World/Box/LeftWall",
+            name="box_left",
+            position=np.array([bx, by + w / 2 + wall_t / 2, bz + h / 2]),
+            scale=np.array([d, wall_t, h]),
+            color=box_color,
+        ))
+        # Right wall
+        self._world.scene.add(VisualCuboid(
+            prim_path="/World/Box/RightWall",
+            name="box_right",
+            position=np.array([bx, by - w / 2 - wall_t / 2, bz + h / 2]),
+            scale=np.array([d, wall_t, h]),
+            color=box_color,
+        ))
+
+        self._box_center = (bx, by, bz + 0.03)
+        logger.info(f"Open-top box built at ({bx}, {by})")
 
     def _setup_rmpflow(self):
         from isaacsim.core.utils.extensions import get_extension_path_from_name
@@ -160,23 +256,13 @@ class IsaacFrankaRobotAPI:
         self._world.reset()
         self._pick_place_controller.reset()
         
-        self._cube1.set_world_pose(
-            position=np.array([0.5, 0.15, 0.025]),
-            orientation=np.array([1.0, 0.0, 0.0, 0.0])
-        )
-        self._cube2.set_world_pose(
-            position=np.array([0.5, 0.0, 0.025]),
-            orientation=np.array([1.0, 0.0, 0.0, 0.0])
-        )
-        self._cube3.set_world_pose(
-            position=np.array([0.5, -0.15, 0.025]),
-            orientation=np.array([1.0, 0.0, 0.0, 0.0])
-        )
-        self._cube4.set_world_pose(
-            position=np.array([0.5, -0.30, 0.025]),
-            orientation=np.array([1.0, 0.0, 0.0, 0.0])
-        )
+        for name, meta in self._object_metadata.items():
+            self._objects[name].set_world_pose(
+                position=np.array(meta["initial_pos"]),
+                orientation=np.array([1.0, 0.0, 0.0, 0.0]),
+            )
         
+
         # Open gripper
         self._franka.gripper.set_joint_positions(
             self._franka.gripper.joint_opened_positions
@@ -186,6 +272,21 @@ class IsaacFrankaRobotAPI:
             self._world.step(render=not self._headless)
         
         logger.info("Robot reset complete")
+
+    def reset_arm(self) -> None:
+        # Move to a safe home position above the workspace
+        home_pos = (0.4, 0.0, 0.35)
+        self.move_ee(home_pos, pos_tolerance=0.06, timeout_s=10.0)
+        
+        # Open gripper
+        self._franka.gripper.set_joint_positions(
+            self._franka.gripper.joint_opened_positions
+        )
+        
+        for _ in range(10):
+            self._world.step(render=not self._headless)
+        
+        logger.info("Robot arm reset to home pose")
 
     def get_observation(self) -> Dict[str, Any]:
         """
@@ -197,7 +298,13 @@ class IsaacFrankaRobotAPI:
         
         objects = {}
         for obj_name in self.list_objects():
-            objects[obj_name] = self.get_object_position(obj_name)
+            pos = self.get_object_position(obj_name)
+            meta = self._object_metadata.get(obj_name, {})
+            objects[obj_name] = {
+                "position": pos,
+                "shape": meta.get("shape", "unknown"),
+                "color": meta.get("color_name", "unknown"),
+            }
         
         return {
             "ee_position": ee_pos,
@@ -205,6 +312,7 @@ class IsaacFrankaRobotAPI:
             "gripper_width": gripper_width,
             "objects": objects,
             "joint_positions": tuple(self._franka.get_joint_positions().tolist()),
+            "box_position": self.get_box_position(),
         }
 
     def get_ee_position(self) -> Tuple[float, float, float]:
@@ -235,23 +343,12 @@ class IsaacFrankaRobotAPI:
 
     # ==================== Object Interaction ====================
     def list_objects(self) -> List[str]:
-        return ["cube1", "cube2", "cube3", "cube4"]
+        return list(self._objects.keys())
 
     def get_object_position(self, name: str) -> Tuple[float, float, float]:
-        if name == "cube1":
-            pos, _ = self._cube1.get_world_pose()
-            return tuple(pos.tolist())
-        elif name == "cube2":
-            pos, _ = self._cube2.get_world_pose()
-            return tuple(pos.tolist())
-        elif name == "cube3":
-            pos, _ = self._cube3.get_world_pose()
-            return tuple(pos.tolist())
-        elif name == "cube4":
-            pos, _ = self._cube4.get_world_pose()
-            return tuple(pos.tolist())
-        elif name == "cube":
-            pos, _ = self._cube1.get_world_pose()
+        resolved = self._resolve_name(name)
+        if resolved in self._objects:
+            pos, _ = self._objects[resolved].get_world_pose()
             return tuple(pos.tolist())
         raise ValueError(f"Unknown object: {name}")
 
@@ -259,25 +356,22 @@ class IsaacFrankaRobotAPI:
         """
         Set position of the object
         """
-        cube_obj = None
-        if name == "cube1" or name == "cube":
-            cube_obj = self._cube1
-        elif name == "cube2":
-            cube_obj = self._cube2
-        elif name == "cube3":
-            cube_obj = self._cube3
-        elif name == "cube4":
-            cube_obj = self._cube4
-        
-        if cube_obj:
-            cube_obj.set_world_pose(position=np.array(pos))
-            for _ in range(5):
-                self._world.step(render=not self._headless)
-        else:
+        resolved = self._resolve_name(name)
+        if resolved not in self._objects:
             raise ValueError(f"Unknown object: {name}")
 
+        self._objects[resolved].set_world_pose(position=np.array(pos))
+        for _ in range(5):
+            self._world.step(render=not self._headless)
 
+    def get_object_metadata(self, name: str) -> dict:
+        resolved = self._resolve_name(name)
+        if resolved in self._object_metadata:
+            return dict(self._object_metadata[resolved])
+        raise ValueError(f"Unknown object: {name}")
 
+    def get_box_position(self) -> Tuple[float, float, float]:
+        return self._box_center
 
 
     # ==================== Motion Control ====================
@@ -384,26 +478,13 @@ class IsaacFrankaRobotAPI:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     ########################################################################
     # NOT USED FOR OUR PORJECT (just for testing at the beggining)
     ########################################################################
     # ==================== High-Level Actions ====================
     def pick_object(
         self,
-        object_name: str = "cube",
+        object_name: str = "cube_red",
         lift_height: float = 0.15,
     ) -> bool:
 

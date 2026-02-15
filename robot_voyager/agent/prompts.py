@@ -8,12 +8,14 @@ RobotAPI methods (available):
 - robot.get_target_position() -> (x, y, z)  # target marker position (for demo tasks)
 - robot.list_objects() -> list[str]  # list of object names in scene
 - robot.get_object_position(name: str) -> (x, y, z)  # object position
+- robot.get_object_metadata(name: str) -> dict  # returns {shape, color_name, size}
 - robot.get_gripper_width() -> float  # gripper opening in meters (0=closed, 0.08=fully open)
 - robot.open_gripper(width: float = 0.08, steps: int = 120) -> None
 - robot.close_gripper(steps: int = 200) -> None  # Physics-based, stops when touching object!
 - robot.move_ee(target_xyz, *, timeout_s=10.0, pos_tolerance=0.02) -> bool  # returns True if reached
 - robot.wait(steps: int) -> None
 - robot.log(msg: str) -> None
+- robot.get_box_position() -> (x, y, z)             # center of open-top box interior
 
 IMPORTANT ROBOT CHARACTERISTICS:
 1. The robot has a ~0.05m position offset between commanded and actual position.
@@ -21,11 +23,11 @@ IMPORTANT ROBOT CHARACTERISTICS:
    -> Example: robot.move_ee(target, pos_tolerance=0.06)
 
 2. The gripper uses physics-based control - it STOPS when it contacts an object!
-   -> close_gripper() will close until fingers touch the cube (~0.055m width)
+   -> close_gripper() will close until fingers touch the object surface
    -> This means grasping WORKS if you position correctly
 
-3. For grasping, position the gripper so fingers are at cube height (cube_z + 0.025m)
-   -> The cube is 0.05m tall, so grasp at cube center height
+3. Grasping height for cubes:
+   -> Cubes (0.05m side): grasp at object_z + 0.02m
 
 SKILL COMPOSITION - You can call previously learned skills via the `skills` object:
 - skills.list() -> list of available skill names
@@ -60,19 +62,19 @@ GUIDELINES FOR WRITING SKILLS:
 5. Keep skills atomic - do one thing well.
 6. Include useful tags (e.g., ["motion", "reach"], ["manipulation", "pick"]).
 7. GENERALIZATION:
-   - Avoid hard-coding object IDs (cube1/cube2/...) or fixed target positions.
-   - Use parameters like cube_name / object_name and target_xy / target_xyz.
-   - If the task mentions a specific cube/target, set DEFAULTS from the task so the skill still succeeds now.
-   - Skill names must be generic (e.g., "pick_cube", "pick_and_place_cube"), NO numeric suffixes.
+   - Avoid hard-coding object IDs or fixed target positions.
+   - Use parameters like object_name and target_xy / target_xyz.
+   - If the task mentions a specific object/target, set DEFAULTS from the task so the skill still succeeds now.
+   - Skill names must be generic (e.g., "pick_object", "pick_and_place"), NO numeric suffixes.
 
-CUBE-AWARE PLACEMENT (MANDATORY FOR ALL PLACEMENTS):
-- If the task says "next to", "beside", "adjacent", "left/right of", compute target from live positions using robot.get_object_position() for the referenced cube.
-- Never place a cube on top of another cube unless the task explicitly says stack/tower/pyramid.
+OBJECT-AWARE PLACEMENT (MANDATORY FOR ALL PLACEMENTS):
+- If the task says "next to", "beside", "adjacent", "left/right of", compute target from live positions using robot.get_object_position() for the referenced object.
+- Never place an object on top of another unless the task explicitly says stack/tower/pyramid.
 - For ANY placement (even absolute target_xy), choose a NEW FREE SPACE:
-  - The target XY must be at least 0.07m away from every other cube (excluding the cube being moved).
-  - Prefer a spot that is clearly separated (>= 0.10m) from all cubes if feasible.
-  - Do NOT reuse the exact XY of any existing cube.
-- If the desired target is too close to another cube, SEARCH for a FREE PLACE:
+  - The target XY must be at least 0.07m away from every other object (excluding the one being moved).
+  - Prefer a spot that is clearly separated (>= 0.10m) from all objects if feasible.
+  - Do NOT reuse the exact XY of any existing object.
+- If the desired target is too close to another object, SEARCH for a FREE PLACE:
   - Try a small set of candidate offsets around the desired target (e.g., +/-0.06, +/-0.08, +/-0.10 in X/Y).
   - If still blocked, scan a coarse grid within reachable area (x: 0.3-0.7, y: -0.4-0.4) and pick the first free spot.
 - If no free spot exists, return False.
@@ -295,92 +297,106 @@ def run(robot, **kwargs) -> bool:
 ```
 
 SCENE OBJECTS:
-The environment contains 4 cubes with different colors:
-- **cube1** (RED) - starts at (0.5, 0.15, 0.025)
-- **cube2** (GREEN) - starts at (0.5, 0.0, 0.025)  
-- **cube3** (BLUE) - starts at (0.5, -0.15, 0.025)
-- **cube4** (YELLOW) - starts at (0.5, -0.30, 0.025)
+The environment contains 4 colored cubes:
+- **cube_red** (RED CUBE) - starts at (0.5, 0.15, 0.025), size 0.05m
+- **cube_green** (GREEN CUBE) - starts at (0.5, 0.0, 0.025), size 0.05m
+- **cube_blue** (BLUE CUBE) - starts at (0.5, -0.15, 0.025), size 0.05m
+- **cube_yellow** (YELLOW CUBE) - starts at (0.5, -0.30, 0.025), size 0.05m
 
-Use robot.list_objects() to get available objects.
-Use robot.get_object_position("cube1") to get positions.
+BOX:
+- Open-top brown box at approximately (0.7, -0.30). Interior center: robot.get_box_position()
+- No door or lid — just pick up a cube and drop it in from above!
+- Typical workflow: pick cube -> move above box -> lower into box -> release
 
-CREATIVE POSSIBILITIES WITH 4 CUBES:
-- Build pyramids (2 base + 1 top)
-- Create towers (stack 2, 3, or 4 cubes vertically)
+Use robot.list_objects() to get available object names.
+Use robot.get_object_position("cube_red") to get positions.
+Use robot.get_object_metadata("cube_red") to get {{shape, color_name, size}}.
+
+CREATIVE POSSIBILITIES:
+- Build pyramids (2 base + 1 top) using cubes
+- Create towers (stack 2 or more cubes vertically)
 - Arrange in lines, squares, or patterns
-- Sort by position or color
+- Sort cubes by color
+- Place a cube inside the box
 - Any creative structure you can imagine!
 
 FOR PYRAMID STACKING TASKS:
 Build a pyramid by:
-1. Place cube1 and cube2 side by side in a row (the base)
-2. Place cube3 on top of them in the middle (the peak)
+1. Place cube_red and cube_green side by side in a row (the base)
+2. Pick another object and place on top in the middle (the peak)
 
 Key considerations:
 - Cubes are 0.05m x 0.05m x 0.05m
-- For a stable base row, place cubes 0.05m apart (center to center)
-- For stacking, place top cube at base_z + 0.05m
-- Reuse pick-and-place pattern for each cube
-- Calculate middle position from ACTUAL base cube positions
+- For a stable base row, place cubes **0.07m** apart center-to-center (NOT 0.05m, robot needs room)
+- For stacking, place top object at base_z + 0.05m
+- Reuse pick-and-place pattern for each object
+- Calculate middle position from ACTUAL base object positions (re-read positions!)
+- For structure verification, use **0.10m tolerance** for checking if objects are near each other
+  (robot has ~0.05m drift, so 0.06m tolerance is too strict for multi-object checks!)
 
-Example pyramid_stack structure (abbreviated):
+FOR BOX TASKS:
+To place a cube inside the open-top box:
 ```python
 def run(robot, **kwargs) -> bool:
-    base_target = kwargs.get("base_target", (0.4, 0.0, 0.025))
-    spacing = 0.05  # cube width
+    cube_name = kwargs.get("cube_name", "cube_red")
     
-    # STEP 1: Place cube1 on left (base_target[1] - spacing/2)
-    cube1 = robot.get_object_position("cube1")
-    # ... pick cube1 from current position ...
-    # ... place at (base_x, base_y - 0.025, base_z) ...
+    # 1. Pick the cube (standard pick sequence)
+    cube = robot.get_object_position(cube_name)
+    above = (cube[0], cube[1], cube[2] + 0.10)
+    robot.move_ee(above, pos_tolerance=0.06, timeout_s=15.0)
+    robot.open_gripper()
+    grasp = (cube[0], cube[1], cube[2] + 0.02)
+    robot.move_ee(grasp, pos_tolerance=0.06, timeout_s=15.0)
+    robot.close_gripper()
+    robot.wait(30)
+    robot.move_ee((cube[0], cube[1], 0.20), pos_tolerance=0.03, timeout_s=15.0)
     
-    # STEP 2: Place cube2 on right (base_target[1] + spacing/2)
-    cube2 = robot.get_object_position("cube2")
-    # ... pick cube2 from current position ...
-    # ... place at (base_x, base_y + 0.025, base_z) ...
+    # 2. Get box position (NEVER hardcode!)
+    box_pos = robot.get_box_position()
+    robot.log(f"Box interior at: {{box_pos}}")
     
-    # STEP 3: Stack cube3 on top in the middle
-    cube1_final = robot.get_object_position("cube1")
-    cube2_final = robot.get_object_position("cube2")
-    middle_x = (cube1_final[0] + cube2_final[0]) / 2
-    middle_y = (cube1_final[1] + cube2_final[1]) / 2
-    top_z = base_target[2] + 0.05  # One cube height above base
+    # 3. Move above box and lower cube in
+    above_box = (box_pos[0], box_pos[1], 0.20)
+    robot.move_ee(above_box, pos_tolerance=0.06, timeout_s=15.0)
+    place_pos = (box_pos[0], box_pos[1], box_pos[2] + 0.02)
+    robot.move_ee(place_pos, pos_tolerance=0.06, timeout_s=15.0)
+    robot.open_gripper()
+    robot.wait(30)
+    robot.move_ee(above_box, pos_tolerance=0.06, timeout_s=10.0)
     
-    cube3 = robot.get_object_position("cube3")
-    # ... pick cube3 from current position ...
-    # ... place at (middle_x, middle_y, top_z + 0.03) ...  # Drop gently
-    
-    # Verify pyramid
-    cube3_final = robot.get_object_position("cube3")
-    return cube3_final[2] > 0.06  # Must be stacked (>6cm high)
+    # 4. Verify cube is near box center
+    final_pos = robot.get_object_position(cube_name)
+    dist = ((final_pos[0] - box_pos[0])**2 + (final_pos[1] - box_pos[1])**2)**0.5
+    robot.log(f"Cube distance from box center: {{dist:.3f}}m")
+    return dist < 0.08
 ```
 
 CRITICAL FOR MULTI-OBJECT TASKS (towers, lines, pyramids, patterns):
 **Verify ALL objects at the END, not just after each step!**
 
-Physics can knock previously placed cubes when placing new ones. Per-step verification
+Physics can knock previously placed objects when placing new ones. Per-step verification
 passes but the final structure is wrong. Always add a FINAL verification loop:
 
 ```python
 def run(robot, **kwargs) -> bool:
-    cube_names = ["cube1", "cube2", "cube3"]
-    targets = [(0.5, 0.0, 0.02), (0.5, 0.0, 0.07), (0.5, 0.0, 0.12)]
+    obj_names = ["cube_red", "cube_green"]
+    targets = [(0.5, 0.0, 0.02), (0.5, 0.0, 0.07)]
     
-    # Place each cube (with per-step checks for early failure)
-    for cube_name, target in zip(cube_names, targets):
+    # Place each object (with per-step checks for early failure)
+    for obj_name, target in zip(obj_names, targets):
         # ... pick and place logic ...
         # Per-step check is OK for early failure detection
     
     robot.log("=== FINAL STRUCTURE VERIFICATION ===")
     all_ok = True
-    for cube_name, target in zip(cube_names, targets):
-        final_pos = robot.get_object_position(cube_name)
-        dist = ((final_pos[0] - target[0])**2 + 
-                (final_pos[1] - target[1])**2 + 
-                (final_pos[2] - target[2])**2)**0.5
-        robot.log(f"FINAL CHECK: {{cube_name}} at {{final_pos}}, target {{target}}, dist={{dist:.3f}}m")
-        if dist > 0.06:
-            robot.log(f"FAILED: {{cube_name}} not at target!")
+    for obj_name, target in zip(obj_names, targets):
+        final_pos = robot.get_object_position(obj_name)
+        d = ((final_pos[0] - target[0])**2 + 
+             (final_pos[1] - target[1])**2 + 
+             (final_pos[2] - target[2])**2)**0.5
+        robot.log(f"FINAL CHECK: {{obj_name}} at {{final_pos}}, target {{target}}, dist={{d:.3f}}m")
+        if d > 0.06:
+            robot.log(f"FAILED: {{obj_name}} not at target!")
             all_ok = False
     
     return all_ok

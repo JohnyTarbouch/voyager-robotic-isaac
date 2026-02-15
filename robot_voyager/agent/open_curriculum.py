@@ -46,23 +46,25 @@ Tasks that failed (avoid repeating these exact tasks):
 {failed_tasks}
 
 GUIDELINES FOR PROPOSING TASKS:
+0. **NEVER propose a task that is already in the 'completed tasks' list above!** Pick something NEW.
 1. Start simple, gradually increase complexity
 2. Build on skills you've already learned
-3. Be CREATIVE! The environment has 4 colored cubes - explore possibilities!
+3. Be CREATIVE! The environment has 4 colored cubes and an open-top box - explore possibilities!
 CRITICAL - SUCCESS CRITERIA TOLERANCES:
 - Robot has ~0.05m position offset - NEVER use tolerances < 0.05m!
-- For position verification, use tolerance of 0.05-0.08m (NOT SMALLER!)
-- Example good criteria: "cube within 0.06m of target position"
+- For single-cube position checks, use 0.06-0.08m tolerance
+- For multi-object structure checks (pyramid base distance, tower alignment), use **0.10m tolerance**
+  because EACH cube drifts ~0.05m, so two cubes can drift 0.10m relative to each other!
+- Example good criteria: "cube within 0.08m of target position"
 - Example BAD criteria: "cube within 0.01m of target" (impossible!)
-4. Task ideas with 4 cubes:
-   - First start with easy tasks: pick-and-place one cube, reach target point
-   - Then combine skills for more complex tasks.
-   - Pyramids: 2 base + 1 top, implement as a first complex task
-   - Stacking: towers of 2, 3, or 4 cubes
-   - Patterns: lines, squares, L-shapes, T-shapes
-   - Sorting: arrange by position or group colors
-   - Moving: relocate cubes to specific positions
-   - Clearing: move all cubes to one side
+4. **MANDATORY TASK PROGRESSION** — propose the FIRST uncompleted step below!
+   Check the 'completed tasks' list and find which step has NOT been done yet. Propose THAT step.
+   Do NOT skip ahead!
+   a) pick-and-place one cube to a new position
+   b) pick a cube and place it inside the open-top box (use robot.get_box_position())
+   c) stack 2 cubes into a tower
+   d) line patterns, 3-cube pyramid, stack 3-4 cubes, L-shapes, sorting
+   e) move all cubes to one side
 5. Challenge yourself but stay within robot capabilities:
    - Robot can reach: x: 0.3-0.7, y: -0.4-0.4, z: 0.0-0.6
    - Gripper can grasp objects ~0.05m wide
@@ -72,6 +74,7 @@ CRITICAL - SUCCESS CRITERIA TOLERANCES:
    - Avoid proposing multiple tasks that only differ by cube index.
 7. NEW FREE SPACE: For any placement or stacking task, choose target positions in a clearly free area,
    far from current cube positions (>= 0.10m if possible), and avoid reusing current cube XY locations.
+8. For box tasks, do NOT hardcode box coordinates - use robot.get_box_position() or say "cube is inside the box" in success criteria.
 
 
 Respond with JSON only:
@@ -101,6 +104,7 @@ class OpenEndedCurriculum:
         self._failed_tasks: List[str] = []
         self._task_count = 0
         self._skills: List[str] = []
+        self._dedup_retries = 0
     
     def set_skills(self, skills: List[str]):
         """Update the list of learned skills"""
@@ -114,10 +118,12 @@ class OpenEndedCurriculum:
         """Record failed task"""
         self._failed_tasks.append(task_name)
     
-    def propose_next_task(self, observation: Dict[str, Any]) -> Optional[OpenTask]:
+    def propose_next_task(self, observation: Dict[str, Any], _is_retry: bool = False) -> Optional[OpenTask]:
         """
         Use LLM to propose the next task based on current state
         """
+        if not _is_retry:
+            self._dedup_retries = 0
         self._task_count += 1
         
         # limit
@@ -128,9 +134,14 @@ class OpenEndedCurriculum:
         objects_str = "None detected"
         if "objects" in observation:
             objects_list = []
-            for name, pos in observation["objects"].items():
+            for name, info in observation["objects"].items():
+                if isinstance(info, dict):
+                    pos = info.get("position", (0, 0, 0))
+                else:
+                    pos = info
                 objects_list.append(f"  - {name} at position ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
             objects_str = "\n".join(objects_list)
+        
         
         # Format skills
         skills_str = "None learned yet" if not self._skills else "\n".join(f"  - {s}" for s in self._skills[-10:])
@@ -173,6 +184,17 @@ class OpenEndedCurriculum:
                 logger.info(f"Proposed task #{self._task_count}: {task.name}")
                 logger.info(f"- Description: {task.description}")
                 logger.info(f"- Success: {task.success_criteria}")
+                
+                # checkj duplicate
+                if self._is_duplicate_task(task.name):
+                    self._dedup_retries += 1
+                    logger.warning(f"Duplicate task detected: '{task.name}' (retry {self._dedup_retries}/3)")
+                    self._completed_tasks.append(task.name)
+                    if self._dedup_retries >= 3:
+                        logger.warning("Max dedup retries reached, accepting task anyway")
+                    else:
+                        return self.propose_next_task(observation, _is_retry=True)
+                
                 task = self._fix_success_criteria(task)
                 return task
             else:
@@ -182,6 +204,35 @@ class OpenEndedCurriculum:
         except Exception as e:
             logger.error(f"Task proposal failed: {e}")
             return None
+    
+    def _is_duplicate_task(self, proposed_name: str) -> bool:
+        """Check if proposed task is similar to completed task"""
+        proposed = proposed_name.lower().replace("-", "_").replace(" ", "_")
+        
+        task_keywords = {
+            "box": ["box", "container"],
+            "stack": ["stack", "tower"],
+            "pyramid": ["pyramid"],
+            "line": ["line", "row"],
+            "pick_place": ["pick_and_place", "pick_place"],
+            "sort": ["sort", "organize"],
+            "clear": ["clear", "move_all"],
+        }
+        
+        for completed in self._completed_tasks:
+            completed_norm = completed.lower().replace("-", "_").replace(" ", "_")
+            
+            if proposed == completed_norm:
+                return True
+            
+            for category, keywords in task_keywords.items():
+                proposed_has = any(kw in proposed for kw in keywords)
+                completed_has = any(kw in completed_norm for kw in keywords)
+                if proposed_has and completed_has:
+                    logger.info(f"Duplicate detected: '{proposed}' matches '{completed_norm}' via '{category}'")
+                    return True
+        
+        return False
     
     def _fix_success_criteria(self, task: OpenTask) -> OpenTask:
         """Replace unrealistic tolerances with achievable ones."""

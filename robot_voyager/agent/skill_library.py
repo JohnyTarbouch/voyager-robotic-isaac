@@ -1,5 +1,6 @@
 import importlib.util
 import ast
+import re
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -275,8 +276,13 @@ class SkillLibrary:
 
             accepted_kwargs = self._extract_accepted_kwargs(code, meta)
             
+            raw_name = str(meta.get("name") or path.stem)
+            # Normalize -> snake_case for consistent 
+            norm_name = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', raw_name)
+            norm_name = norm_name.lower().replace(' ', '_').replace('-', '_')
+
             return Skill(
-                name=str(meta.get("name") or path.stem),
+                name=norm_name,
                 description=str(meta.get("description") or ""),
                 tags=list(meta.get("tags") or []),
                 code=code,

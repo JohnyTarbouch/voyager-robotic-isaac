@@ -20,10 +20,18 @@ You will be given:
 Based on this information, determine if the task was SUCCESSFUL or FAILED.
 
 IMPORTANT GUIDELINES:
-- Be strict but fair - the task should be meaningfully completed
-- Small position errors (< 0.05m) are acceptable due to robot precision limits
-- If the goal was achieved even partially, consider it a success
-- Look for actual changes in the environment that match the task goal
+- **Judge by PHYSICAL OUTCOME, not by code return value!**
+  The code may return False due to overly strict self-verification, but the task could still
+  be physically successful. Always compare BEFORE vs AFTER object positions yourself.
+- Position errors up to 0.05m per object are normal due to robot precision limits.
+- For multi-object structures (pyramids, towers), allow up to 0.10m tolerance between objects
+  because each object can drift ~0.05m independently.
+- A pyramid is successful if: base cubes are roughly side by side AND a top cube is elevated above them.
+- A tower is successful if: cubes are stacked with increasing Z values at roughly the same XY.
+- If the goal was achieved even partially, consider it a success.
+- Look for actual changes in the environment that match the task goal.
+- Do NOT blindly trust log messages like "Base cubes are not close enough" — verify yourself
+  by looking at the actual STATE AFTER positions!
 
 Output your response in this EXACT JSON format:
 {
@@ -76,11 +84,13 @@ class CriticAgent:
         logs_section = ""
         if execution_logs:
             logs_section = f"""
-EXECUTION LOGS (from robot.log() - these contain pre-computed distances!):
+EXECUTION LOGS (from robot.log() calls):
 {execution_logs}
 
-IMPORTANT: The execution logs above contain computed distances from the skill code.
-If a log shows "Distance from target: X.XXXm" and X.XXX < tolerance (usually 0.06m), trust that calculation!
+NOTE: These logs are from the code's own checks, which may use overly strict tolerances.
+Do NOT blindly trust failure messages in the logs. Instead, verify by looking at the actual
+STATE AFTER positions above — if the physical outcome matches the task goal, it's a SUCCESS
+even if the code's own verification said it failed.
 """                         
         
         user_prompt = f"""TASK: {task_description}
@@ -151,8 +161,20 @@ Respond with JSON only: {{"success": true/false, "reasoning": "", "confidence": 
         
         if "objects" in state:
             lines.append("Objects:")
-            for name, pos in state["objects"].items():
-                lines.append(f"  - {name}: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
+            for name, info in state["objects"].items():
+                if isinstance(info, dict):
+                    pos = info.get("position", (0, 0, 0))
+                    shape = info.get("shape", "")
+                    color = info.get("color", "")
+                    label = f" ({color} {shape})" if shape else ""
+                    lines.append(f"  - {name}{label}: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
+                else:
+                    pos = info
+                    lines.append(f"  - {name}: ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
+        
+        if "box_position" in state:
+            bp = state["box_position"]
+            lines.append(f"Box (open-top) center: ({bp[0]:.3f}, {bp[1]:.3f}, {bp[2]:.3f})")
         
         return "\n".join(lines)
 

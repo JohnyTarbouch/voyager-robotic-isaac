@@ -1,9 +1,15 @@
 import logging
+import re
 from typing import Any, Dict, Optional, Callable, List
 
 from agent.skill_library import SkillLibrary
 
 logger = logging.getLogger(__name__)
+
+
+def _to_snake_case(name: str) -> str:
+    s = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', name)
+    return s.lower().replace(' ', '_').replace('-', '_')
 
 
 class SkillExecutor:
@@ -126,31 +132,22 @@ class SkillExecutor:
         return {"__builtins__": safe_builtins}
     
     def call_skill(self, skill_name: str, **kwargs) -> bool:
-        """
-        Call a learned skill by name.
+        norm = _to_snake_case(skill_name)
+
+        if norm in self._skill_cache:
+            return self._skill_cache[norm](**kwargs)
         
-        Args:
-            skill_name: Name of the skill to call
-            kwargs: Arguments to pass to the skill  (position for example)
-            
-        Returns:
-            True if skill succeeded, False otherwise
-        """
-        # Check cache first
-        if skill_name in self._skill_cache:
-            return self._skill_cache[skill_name](**kwargs)
-        
-        # Load skill
-        skill = self.skill_library.get(skill_name)
+        #normalized name
+        skill = self.skill_library.get(norm) or self.skill_library.get(skill_name)
         if not skill:
-            logger.error(f"Skill not found: {skill_name}")
+            logger.error(f"Skill not found: {skill_name} (normalized: {norm})")
             return False
         
-        skill_fn = self._create_skill_function(skill_name, skill.code, skill.accepted_kwargs)
+        skill_fn = self._create_skill_function(norm, skill.code, skill.accepted_kwargs)
         if not skill_fn:
             return False
         
-        self._skill_cache[skill_name] = skill_fn
+        self._skill_cache[norm] = skill_fn
         
         return skill_fn(**kwargs)
     
@@ -178,7 +175,6 @@ def create_skill_context(skill_library: SkillLibrary, robot: Any) -> Dict[str, A
     context = executor._get_safe_namespace()
     
     class SkillsProxy:
-        """Proxy object for accessing learned skills"""
         def __init__(self, skill_dict: Dict[str, Callable], executor: SkillExecutor):
             self._skills = skill_dict
             self._executor = executor
@@ -186,20 +182,32 @@ def create_skill_context(skill_library: SkillLibrary, robot: Any) -> Dict[str, A
         def __getattr__(self, name: str) -> Callable:
             if name.startswith("_"):
                 raise AttributeError(name)
+            norm = _to_snake_case(name)
+            if norm in self._skills:
+                logger.info("[SkillsProxy] getattr('%s') -> found as '%s'", name, norm)
+                return self._skills[norm]
             if name in self._skills:
+                logger.info("[SkillsProxy] getattr('%s') -> found (exact match)", name)
                 return self._skills[name]
+            logger.warning("[SkillsProxy] getattr('%s') -> NOT FOUND", name)
             raise AttributeError(f"Skill not found: {name}")
         
         def call(self, skill_name: str, **kwargs) -> bool:
-            return self._executor.call_skill(skill_name, **kwargs)
+            logger.info("[SkillsProxy] call('%s', %s) -> executing", skill_name, list(kwargs.keys()))
+            result = self._executor.call_skill(skill_name, **kwargs)
+            logger.info("[SkillsProxy] call('%s') -> returned %s", skill_name, result)
+            return result
         
         def list(self) -> list:
             return list(self._skills.keys())
         
         def has(self, name: str) -> bool:
-            return name in self._skills
+            norm = _to_snake_case(name)
+            found = norm in self._skills or name in self._skills
+            logger.info("[SkillsProxy] has('%s') -> %s (normalized: '%s')", name, found, norm)
+            return found
     
-    # Build proxy first so nested skills.call(...) works inside composed skills.
+    # Build proxy first so nested skills.call works inside composed skills.
     skills: Dict[str, Callable] = {}
     skills_proxy = SkillsProxy(skills, executor)
     executor.set_skills_proxy(skills_proxy)
