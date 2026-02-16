@@ -232,5 +232,6 @@ robot_voyager/evaluations/
 robot_voyager/skills/generated/
 writing/*
 !writing/_ML_Project__Johny_Tarbouch___Robo_Voyager.pdf
-extra/full_video.mp4
-extra/new_full_video.mp4
+extra/*.mp4
+extra/trim_video.py
+!extra/compressed_very_small.mp4
