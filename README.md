@@ -1,5 +1,9 @@
 # Robot Voyager 
 
+<p align="center">
+  <img src="extra/LUH.jpg" alt="LUH Logo" width="180" />
+</p>
+
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Isaac Sim](https://img.shields.io/badge/Isaac%20Sim-5.0-green)](https://developer.nvidia.com/isaac-sim)
 
@@ -12,6 +16,10 @@ Inspired by [MineDojo/Voyager](https://github.com/MineDojo/Voyager), this system
 - Builds a **skill library**
 - Follows a **curriculum** of progressively harder tasks
 - Stores only **verified successful** skills
+
+<p align="center">
+  <img src="extra/architecture.png" alt="Architecture" width="85%"/>
+</p>
 
 NOTE: we also implement a manual controll, and manual critic.
 
@@ -45,7 +53,7 @@ cd robot_voyager
 # Full agent
 C:\isaacsim\python.bat -m apps.run_voyager --max-tasks 10
 
-# Only for testing  
+# Only for testing (Not needed)
 C:\isaacsim\python.bat -m apps.run_agent --backend isaac_rmpflow_franka
 
 ```

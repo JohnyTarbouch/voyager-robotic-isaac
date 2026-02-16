@@ -230,4 +230,7 @@ robot_voyager/agent/verifier.py
 
 robot_voyager/evaluations/
 robot_voyager/skills/generated/
-writing/
+writing/*
+!writing/_ML_Project__Johny_Tarbouch___Robo_Voyager.pdf
+extra/full_video.mp4
+extra/new_full_video.mp4
