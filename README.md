@@ -23,71 +23,72 @@ Inspired by [MineDojo/Voyager](https://github.com/MineDojo/Voyager), this system
 
 NOTE: we also implement a manual controll, and manual critic.
 
-## Start
+## Quick Start
 
-### 1. Setup Environment
+### 1. Install dependencies
+
+From the repository root:
 
 ```bash
-# Clone/download this project (best to clone in stand alone in isaacsim)
-cd robot_voyager
-
-# Create virtual environment
-conda create --name isaacsim
-
+conda create -n isaacsim python=3.10 -y
 conda activate isaacsim
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Configure LLM
-cp .env.example .env
-# Edit .env with your LLM endpoint and API key
 ```
 
+### 2. Configure the agent
 
-
-### 2. Run with Isaac Sim (Franka + RMPflow)
+Create the runtime env file inside `robot_voyager/`:
 
 ```bash
 cd robot_voyager
-# Full agent
+
+# from repository root (Linux/macOS)
+cp .env.example robot_voyager/.env
+
+# from repository root (Windows CMD)
+copy .env.example robot_voyager\.env
+```
+
+Edit `robot_voyager/.env` and set:
+
+```bash
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=your-key
+LLM_MODEL=llama-3.3-70b-instruct
+
+AGENT_MAX_ATTEMPTS=6
+AGENT_TIMEOUT_S=25
+```
+
+### 3. Run the autonomous Voyager loop
+
+```bash
+cd robot_voyager
 C:\isaacsim\python.bat -m apps.run_voyager --max-tasks 10
 
 # Only for testing (Not needed)
 C:\isaacsim\python.bat -m apps.run_agent --backend isaac_rmpflow_franka
-
 ```
 
-### 3. Evaluate What Happened After Runs
+Headless mode:
 
-Run evaluation without launching new Isaac sessions:
+```bash
+C:\isaacsim\python.bat -m apps.run_voyager --max-tasks 10 --headless
+```
+
+### 4. Evaluate previous runs
 
 ```bash
 cd robot_voyager
 
-# Evaluate latest run only
+# Analyze latest run only
 python -m apps.evaluate_runs --aggregate-only --num-runs 1
 
-# Evaluate many past runs (last 10)
+# Analyze last 10 runs
 python -m apps.evaluate_runs --aggregate-only --num-runs 10
-
 ```
 
-## Configuration
 
-### Environment Variables (.env)
-
-```bash
-# First: Edit .env with your LLM endpoint and API key
-# LLM endpoint (OpenAI-compatible)
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_API_KEY=your-key
-LLM_MODEL=llama
-
-# Agent settings
-AGENT_MAX_ATTEMPTS=3
-AGENT_TIMEOUT_S=25
-```
 
 ### Command Line Options
 
